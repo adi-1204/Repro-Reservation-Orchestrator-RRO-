@@ -50,7 +50,7 @@ class Bug(db.Model):
         db.Index('idx_bug_code', 'bug_code'),
         db.Index('idx_engineer', 'engineer_id'),
         db.Index('idx_priority', 'priority'),
-        db.Index('idx_status', 'status'),
+        db.Index('idx_bug_status', 'status'),
         db.Index('idx_bug_type', 'bug_type'),
     )
 

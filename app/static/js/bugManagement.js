@@ -365,9 +365,20 @@ function buildTestsTableHtml(testsPayload) {
     `;
 }
 
+function cleanAnalysisField(val) {
+    if (!val) return null;
+    // Strip leading "Answer:" prefix that the LLM adds
+    let cleaned = val.replace(/^\s*Answer:\s*/i, '').trim();
+    // Treat "not found in provided context" as absent
+    if (/not found in provided context/i.test(cleaned)) return null;
+    return cleaned || null;
+}
+
 function buildMlAnalysisSectionHtml(analysisPayload) {
+    const hasRecord = analysisPayload?.analysis !== null && analysisPayload?.analysis !== undefined;
     const analysis = analysisPayload?.analysis || {};
-    const pending = 'Pending analysis...';
+    const pending  = 'Pending analysis...';
+    const notFound = 'Not found in bug comments';
 
     return `
         <div class="ml-analysis-inner">
@@ -375,19 +386,19 @@ function buildMlAnalysisSectionHtml(analysisPayload) {
             <ol class="ml-analysis-list">
                 <li class="ml-analysis-item">
                     <span class="ml-analysis-label">Repro Actions:</span>
-                    <span class="ml-analysis-value">${escapeHtml(analysis.repro_actions || pending)}</span>
+                    <span class="ml-analysis-value">${escapeHtml(cleanAnalysisField(analysis.repro_actions) || (hasRecord ? notFound : pending))}</span>
                 </li>
                 <li class="ml-analysis-item">
                     <span class="ml-analysis-label">Config Changes:</span>
-                    <span class="ml-analysis-value">${escapeHtml(analysis.config_changes || pending)}</span>
+                    <span class="ml-analysis-value">${escapeHtml(cleanAnalysisField(analysis.config_changes) || (hasRecord ? notFound : pending))}</span>
                 </li>
                 <li class="ml-analysis-item">
                     <span class="ml-analysis-label">Repro Readiness:</span>
-                    <span class="ml-analysis-value">${escapeHtml(analysis.repro_readiness || pending)}</span>
+                    <span class="ml-analysis-value">${escapeHtml(cleanAnalysisField(analysis.repro_readiness) || (hasRecord ? notFound : pending))}</span>
                 </li>
                 <li class="ml-analysis-item">
                     <span class="ml-analysis-label">Summary:</span>
-                    <span class="ml-analysis-value">${escapeHtml(analysis.summary || pending)}</span>
+                    <span class="ml-analysis-value">${escapeHtml(cleanAnalysisField(analysis.summary) || (hasRecord ? notFound : pending))}</span>
                 </li>
             </ol>
         </div>

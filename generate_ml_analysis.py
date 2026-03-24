@@ -1,17 +1,18 @@
 """
-Generate ML analysis for bugs using the local mock ChatHPE API.
+Generate ML analysis for bugs using the real ChatHPE API.
+
+Credentials are loaded from the Flask app config (sourced from .env).
+No bug data is written outside the local database.
 
 Usage:
-    python generate_ml_analysis.py --mock-port 5001
-    python generate_ml_analysis.py --mock-port 5001 --force
+    python generate_ml_analysis.py
+    python generate_ml_analysis.py --force
 """
 
 import argparse
-import json
 import re
 import sys
 from datetime import datetime
-from urllib import error, request
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -21,46 +22,7 @@ from app.models.bug_comments import BugComment
 from app.models.bug_tests import BugTest
 from app.models.ml_analysis import MLAnalysis
 
-
-def http_get_text(url, timeout=30):
-    req = request.Request(url, method="GET")
-    with request.urlopen(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8")
-
-
-def http_post_json(url, payload, timeout=30):
-    data = json.dumps(payload).encode("utf-8")
-    req = request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with request.urlopen(req, timeout=timeout) as resp:
-        body = resp.read().decode("utf-8")
-        return json.loads(body) if body else {}
-
-
-def get_session_id(base_url):
-    raw = http_get_text(f"{base_url}/v2.8/sessionId_generator").strip()
-    parts = raw.split(": ", 1)
-    if len(parts) != 2 or not parts[1].strip():
-        raise ValueError(f"Unexpected session response: {raw}")
-    return parts[1].strip()
-
-
-def set_preferences(base_url, session_id):
-    return http_post_json(
-        f"{base_url}/v2.8/preferences",
-        {"session_id": session_id, "model": "chatlite"},
-    )
-
-
-def call_chatlite(base_url, session_id, prompt):
-    return http_post_json(
-        f"{base_url}/v2.8/call/chatlite",
-        {"session_id": session_id, "user_query": prompt},
-    )
+import chathpe_client
 
 
 def build_prompt(bug, comments, test_name):
@@ -124,84 +86,108 @@ def extract_repro_readiness(comments):
     return "Needs more runs"
 
 
-def strip_markdown_bold(value):
-    if not value:
-        return value
-    return re.sub(r'\*\*.*?\*\*:?\s*', '', value).strip()
-
-
-def clean_response_text(message_text):
-    text = (message_text or "").strip()
-    cleaned_lines = []
-    for line in text.splitlines():
-        if "This is a mock response" in line:
-            continue
-        cleaned_lines.append(line)
-    return "\n".join(cleaned_lines).strip()
-
-
 def parse_analysis_fields(message_text):
-    text = clean_response_text(message_text)
+    """
+    Parse structured ChatHPE response into analysis fields.
+
+    Expects the model to respond in the format requested by the prompt:
+        REPRO_ACTIONS: <content>
+        CONFIG_CHANGES: <content>
+        REPRO_READINESS: <content>
+        SUMMARY: <content>
+
+    Falls back gracefully if the model does not follow the exact format.
+    """
+    text = (message_text or "").strip()
     parsed = {
-        "repro_actions": None,
-        "config_changes": None,
-        "summary": None,
+        "repro_actions":   None,
+        "config_changes":  None,
+        "repro_readiness": None,
+        "summary":         None,
     }
 
-    patterns = {
-        "repro_actions": r"\*\*Failure Signature\*\*:\s*(.*?)(?:\n\s*\n|$)",
-        "config_changes": r"\*\*Key Engineer Findings\*\*:\s*(.*?)(?:\n\s*\n|$)",
-        "summary": r"\*\*Reproduction Steps / Config Changes\*\*:\s*(.*?)(?:\n\s*\n|$)",
+    # Primary pattern: structured labels as requested in the prompt
+    field_patterns = {
+        "repro_actions":   r"REPRO_ACTIONS:\s*(.*?)(?=\nREPRO_ACTIONS:|\nCONFIG_CHANGES:|\nREPRO_READINESS:|\nSUMMARY:|$)",
+        "config_changes":  r"CONFIG_CHANGES:\s*(.*?)(?=\nREPRO_ACTIONS:|\nCONFIG_CHANGES:|\nREPRO_READINESS:|\nSUMMARY:|$)",
+        "repro_readiness": r"REPRO_READINESS:\s*(.*?)(?=\nREPRO_ACTIONS:|\nCONFIG_CHANGES:|\nREPRO_READINESS:|\nSUMMARY:|$)",
+        "summary":         r"SUMMARY:\s*(.*?)(?=\nREPRO_ACTIONS:|\nCONFIG_CHANGES:|\nREPRO_READINESS:|\nSUMMARY:|$)",
     }
 
     matched_any = False
-    for field, pattern in patterns.items():
+    for field, pattern in field_patterns.items():
         match = re.search(pattern, text, flags=re.DOTALL)
         if match:
             parsed[field] = match.group(1).strip()
             matched_any = True
 
     if not matched_any:
-        parsed["repro_actions"] = "See summary"
-        parsed["config_changes"] = "See summary"
-        parsed["summary"] = text
+        # Model didn't follow the structured format — use full response as summary
+        parsed["repro_actions"]   = "See summary"
+        parsed["config_changes"]  = "See summary"
+        parsed["repro_readiness"] = "Needs more runs"
+        parsed["summary"]         = text
     else:
-        for field in ("repro_actions", "config_changes", "summary"):
+        defaults = {
+            "repro_actions":   "See summary",
+            "config_changes":  "See summary",
+            "repro_readiness": "Needs more runs",
+            "summary":         "See summary",
+        }
+        for field, default in defaults.items():
             if not parsed[field]:
-                parsed[field] = "See summary"
+                parsed[field] = default
 
     return parsed
 
 
-def generate(mock_port, force):
-    base_url = f"http://127.0.0.1:{mock_port}"
+def generate(force=False, flask_app=None):
+    """
+    Generate ML analysis for all bugs using the real ChatHPE API.
 
-    try:
-        session_id = get_session_id(base_url)
-        set_preferences(base_url, session_id)
-    except (error.URLError, error.HTTPError, ValueError, json.JSONDecodeError) as exc:
-        print(f"Failed to initialize mock ChatHPE session: {exc}")
-        sys.exit(1)
-
+    Args:
+        force: Regenerate analysis even when a summary already exists.
+        flask_app: Optional existing Flask app instance. When called from a
+                   background thread that already owns an app context, pass the
+                   app here to avoid creating a second instance.
+    """
     analyzed = 0
     skipped = 0
     errors = 0
     pending_commits = 0
 
-    app = create_app()
+    app = flask_app if flask_app is not None else create_app()
 
     with app.app_context():
+        # --- Initialise ChatHPE session ---
+        try:
+            creds = chathpe_client.load_creds_from_config(app.config)
+        except ValueError as exc:
+            print(f"ChatHPE credential error: {exc}")
+            sys.exit(1)
+
+        try:
+            session_id = chathpe_client.get_session_id(creds["client_id"], creds["jwt_token"])
+            chathpe_client.set_preferences(
+                session_id,
+                creds["client_id"],
+                creds["jwt_token"],
+                creds["user_id"],
+                creds["username"],
+            )
+        except Exception as exc:
+            print(f"Failed to initialise ChatHPE session: {exc}")
+            sys.exit(1)
+
         try:
             bugs = Bug.query.order_by(Bug.id.asc()).all()
 
             for bug in bugs:
                 existing = MLAnalysis.query.filter_by(bug_id=bug.id).first()
-
                 has_summary = existing and existing.summary is not None
-                has_bug_unknown = has_summary and "Bug UNKNOWN" in (existing.summary or "")
 
-                if not force and has_summary and not has_bug_unknown:
-                    print(f"[{bug.bug_code}] Skipping - already analyzed (use --force to regenerate)")
+                if not force and has_summary:
+                    print(f"[{bug.bug_code}] Skipping - already analysed (use --force to regenerate)")
                     skipped += 1
                     continue
 
@@ -218,11 +204,17 @@ def generate(mock_port, force):
                 prompt = build_prompt(bug, comments, test_name)
 
                 try:
-                    response = call_chatlite(base_url, session_id, prompt)
-                    message = response.get("message", "")
+                    message = chathpe_client.call_chatlite(
+                        session_id,
+                        prompt,
+                        creds["client_id"],
+                        creds["jwt_token"],
+                        creds["user_id"],
+                        creds["username"],
+                    )
                     parsed = parse_analysis_fields(message)
-                except (error.URLError, error.HTTPError, ValueError, json.JSONDecodeError) as exc:
-                    print(f"[{bug.bug_code}] Error - failed to generate analysis: {exc}")
+                except Exception as exc:
+                    print(f"[{bug.bug_code}] Error - ChatHPE call failed: {exc}")
                     errors += 1
                     continue
 
@@ -230,15 +222,17 @@ def generate(mock_port, force):
                     existing = MLAnalysis(bug_id=bug.id)
                     db.session.add(existing)
 
-                existing.repro_actions = strip_markdown_bold(parsed["repro_actions"])
-                existing.config_changes = strip_markdown_bold(parsed["config_changes"])
-                existing.repro_readiness = strip_markdown_bold(extract_repro_readiness(comments))
-                existing.summary = strip_markdown_bold(parsed["summary"])
-                existing.generated_at = datetime.utcnow()
+                existing.repro_actions   = parsed["repro_actions"]
+                existing.config_changes  = parsed["config_changes"]
+                existing.repro_readiness = (
+                    parsed["repro_readiness"] or extract_repro_readiness(comments)
+                )
+                existing.summary       = parsed["summary"]
+                existing.generated_at  = datetime.utcnow()
 
                 analyzed += 1
                 pending_commits += 1
-                print(f"[{bug.bug_code}] Generating analysis... Done")
+                print(f"[{bug.bug_code}] ChatHPE analysis generated.")
 
                 if pending_commits >= 5:
                     db.session.commit()
@@ -247,33 +241,29 @@ def generate(mock_port, force):
             if pending_commits > 0:
                 db.session.commit()
 
-            print("ML Analysis generation complete.")
-            print(f"  Analyzed: {analyzed}")
+            print("\nChatHPE analysis generation complete.")
+            print(f"  Analysed: {analyzed}")
             print(f"  Skipped:  {skipped}")
             print(f"  Errors:   {errors}")
 
         except SQLAlchemyError as exc:
             db.session.rollback()
-            print(f"Database error while generating ML analysis: {exc}")
+            print(f"Database error while generating analysis: {exc}")
             sys.exit(1)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Generate ML analysis using local mock ChatHPE API")
-    parser.add_argument(
-        "--mock-port",
-        type=int,
-        default=5001,
-        help="Port where mock_api_server.py is running (default: 5001)",
+    parser = argparse.ArgumentParser(
+        description="Generate bug analysis using the real ChatHPE API."
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Regenerate analysis even if summary already exists",
+        help="Regenerate analysis even if a summary already exists.",
     )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    generate(args.mock_port, args.force)
+    generate(force=args.force)

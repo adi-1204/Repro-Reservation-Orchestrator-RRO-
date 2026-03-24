@@ -1,8 +1,13 @@
-from flask import Blueprint, jsonify, render_template, request, redirect, url_for
+from flask import Blueprint, jsonify, render_template, request, redirect, url_for, current_app
 from app.extensions import db
 from app.models.user import User
 from app.models.workgroup import Workgroup
 from app.models.workgroupAssignment import WorkgroupAssignment
+from app.models.bug import Bug
+from app.models.bug_tests import BugTest
+from app.models.bug_stations import BugStation
+from app.models.bug_comments import BugComment
+from app.models.ml_analysis import MLAnalysis
 from sqlalchemy.exc import IntegrityError
 from app.auth_utils import (
     get_current_auth_token,
@@ -12,8 +17,90 @@ from app.auth_utils import (
     manager_required,
 )
 from datetime import datetime
+import threading
+import logging
+
+log = logging.getLogger(__name__)
 
 manager = Blueprint("manager", __name__)
+
+# ---------------------------------------------------------------------------
+# In-memory ingestion status store: workgroup_id -> status dict
+# Keys: status ("idle"|"running"|"done"|"error"), ingested, updated, errors
+# ---------------------------------------------------------------------------
+_ingest_jobs: dict = {}
+_ingest_jobs_lock = threading.Lock()
+
+
+def _run_ingestion_thread(app, workgroup_id, release_version):
+    """
+    Background thread: fetch real Bugzilla bugs for the workgroup's build
+    version, upsert them into the database, then run ChatHPE analysis on
+    any newly ingested bugs.
+
+    All credentials come from the Flask app config (sourced from .env).
+    No company data is written outside the local database.
+    """
+    print(f"[Ingestion] Starting for workgroup {workgroup_id}, build {release_version}", flush=True)
+    with _ingest_jobs_lock:
+        _ingest_jobs[workgroup_id] = {"status": "running", "ingested": 0, "updated": 0, "errors": []}
+
+    try:
+        with app.app_context():
+            from bugzilla_ingest import BugzillaIngester
+            import chathpe_client
+
+            # Build email → User.id map so Bugzilla assignee emails are linked
+            # to the correct engineer records in the DB.
+            engineers = User.query.filter_by(role="Engineer").all()
+            email_map = {e.email.lower(): e.id for e in engineers}
+            print(f"[Ingestion] Found {len(engineers)} engineers in DB.", flush=True)
+
+            # Load ChatHPE creds from config (sourced from .env)
+            chathpe_creds = None
+            try:
+                chathpe_creds = chathpe_client.load_creds_from_config(app.config)
+            except ValueError as exc:
+                print(f"[Ingestion] ChatHPE creds missing/invalid ({exc}) — analysis will be skipped.", flush=True)
+
+            ingester = BugzillaIngester(
+                release_version=release_version,
+                bugz_user=app.config.get("BUGZ_USER"),
+                bugz_password=app.config.get("BUGZ_PASSWORD"),
+            )
+            result = ingester.ingest(db.session, email_map, chathpe_creds=chathpe_creds)
+            print(f"[Ingestion] Bugzilla result: {result}", flush=True)
+
+            with _ingest_jobs_lock:
+                _ingest_jobs[workgroup_id] = {
+                    "status": "done",
+                    "ingested": result.get("ingested", 0),
+                    "updated":  result.get("updated", 0),
+                    "errors":   result.get("errors", []),
+                }
+            print(f"[Ingestion] Done for workgroup {workgroup_id}.", flush=True)
+
+    except Exception as exc:
+        print(f"[Ingestion] ERROR for workgroup {workgroup_id}: {exc}", flush=True)
+        log.error("Ingestion thread error for workgroup %d: %s", workgroup_id, exc)
+        with _ingest_jobs_lock:
+            _ingest_jobs[workgroup_id] = {
+                "status":  "error",
+                "ingested": 0,
+                "updated":  0,
+                "errors":  [str(exc)],
+            }
+
+
+def _trigger_ingestion(workgroup_id, release_version):
+    """Launch the ingestion background thread for the given workgroup."""
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=_run_ingestion_thread,
+        args=(app, workgroup_id, release_version),
+        daemon=True,
+    )
+    t.start()
 
 
 @manager.route("/manager", methods=["GET"])
@@ -127,13 +214,17 @@ def create_workgroup():
             if eng:
                 engineers.append({"id": eng.id, "name": f"{eng.first_name} {eng.last_name}"})
 
+        # Trigger background ingestion of real Bugzilla bugs + ChatHPE analysis
+        _trigger_ingestion(wg.id, release_version)
+
         return jsonify({
             "id": wg.id,
             "name": wg.name,
             "release_version": wg.release_version,
             "is_completed": wg.is_completed,
             "created_at": wg.created_at.isoformat() if wg.created_at else None,
-            "engineers": engineers
+            "engineers": engineers,
+            "ingestion_started": True,
         })
     except IntegrityError as e:
         db.session.rollback()
@@ -166,14 +257,19 @@ def update_workgroup(id):
 
     if proposed_name is not None:
         wg.name = proposed_name
+
+    version_changed = False
     if "release_version" in data:
         release_version = (data["release_version"] or "").strip()
         if not release_version:
             return jsonify({"error": "Release version is required."}), 400
+        if wg.release_version != release_version:
+            version_changed = True
         wg.release_version = release_version
     if "is_completed" in data:
         wg.status = "Completed" if data["is_completed"] else "Active"
 
+    engineers_changed = False
     if "engineer_ids" in data:
         new_ids = set(data["engineer_ids"])
         existing = WorkgroupAssignment.query.filter_by(workgroup_id=id).all()
@@ -181,6 +277,9 @@ def update_workgroup(id):
 
         remove_ids = existing_ids - new_ids
         add_ids = new_ids - existing_ids
+
+        if remove_ids or add_ids:
+            engineers_changed = True
 
         if remove_ids:
             WorkgroupAssignment.query.filter(
@@ -197,6 +296,10 @@ def update_workgroup(id):
         db.session.rollback()
         print(f"Integrity error updating workgroup: {str(e)}")  # Debug log
         return jsonify({"error": "Workgroup name already exists. Please choose a unique name."}), 409
+
+    # Re-trigger ingestion if build version or engineer roster changed
+    if version_changed or engineers_changed:
+        _trigger_ingestion(wg.id, wg.release_version)
 
     assignments = WorkgroupAssignment.query.filter_by(workgroup_id=id).all()
     engineers = []
@@ -218,6 +321,20 @@ def update_workgroup(id):
 @manager_required          #  Engineer cannot delete workgroups
 def delete_workgroup(id):
     wg = Workgroup.query.get_or_404(id)
+
+    # Find all bugs linked to this workgroup's build version.
+    # resource_group is always set to the workgroup's release_version during
+    # ingestion, so this filter reliably finds every bug for this workgroup.
+    bugs = Bug.query.filter_by(resource_group=wg.release_version).all()
+    bug_ids = [b.id for b in bugs]
+
+    if bug_ids:
+        MLAnalysis.query.filter(MLAnalysis.bug_id.in_(bug_ids)).delete(synchronize_session=False)
+        BugComment.query.filter(BugComment.bug_id.in_(bug_ids)).delete(synchronize_session=False)
+        BugTest.query.filter(BugTest.bug_id.in_(bug_ids)).delete(synchronize_session=False)
+        BugStation.query.filter(BugStation.bug_id.in_(bug_ids)).delete(synchronize_session=False)
+        Bug.query.filter(Bug.id.in_(bug_ids)).delete(synchronize_session=False)
+
     WorkgroupAssignment.query.filter_by(workgroup_id=id).delete()
     db.session.delete(wg)
     db.session.commit()
@@ -232,3 +349,29 @@ def get_engineers():
         {"id": e.id, "name": f"{e.first_name} {e.last_name}", "email": e.email}
         for e in engineers
     ])
+
+
+@manager.route("/api/workgroups/<int:id>/ingest_status", methods=["GET"])
+@manager_required
+def ingest_status(id):
+    """
+    Poll the background ingestion status for a workgroup.
+
+    Response JSON:
+        { "status": "idle"|"running"|"done"|"error",
+          "ingested": <int>,
+          "updated":  <int>,
+          "errors":   [<str>, ...] }
+    """
+    with _ingest_jobs_lock:
+        job = _ingest_jobs.get(id)
+
+    if job is None:
+        return jsonify({"status": "idle", "ingested": 0, "updated": 0, "errors": []})
+
+    return jsonify({
+        "status":   job.get("status", "idle"),
+        "ingested": job.get("ingested", 0),
+        "updated":  job.get("updated", 0),
+        "errors":   job.get("errors", []),
+    })

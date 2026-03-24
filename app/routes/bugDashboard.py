@@ -67,43 +67,43 @@ def get_bugs():
     query = Bug.query
 
     if workgroup_id:
-        # Filter bugs by workgroup - get engineers assigned to this workgroup
+        workgroup = Workgroup.query.get(workgroup_id)
+        # Filter to engineers assigned to this workgroup ONLY.
+        # Bugs with no engineer (engineer_id IS NULL) are excluded — they cannot
+        # be linked to any engineer in the workgroup.
         engineer_ids = db.session.query(WorkgroupAssignment.employee_id).filter(
             WorkgroupAssignment.workgroup_id == workgroup_id
         ).all()
         engineer_ids = [e[0] for e in engineer_ids]
-        
+
         if not engineer_ids:
-            # No engineers assigned to this workgroup
             return jsonify({"repro": [], "test": []})
-        
-        query = query.filter(or_(Bug.engineer_id.in_(engineer_ids), Bug.engineer_id.is_(None)))
+
+        # Bugs must: (a) belong to an engineer in this workgroup AND
+        #            (b) match the workgroup's build/release version
+        query = query.filter(
+            Bug.engineer_id.in_(engineer_ids),
+            Bug.resource_group == workgroup.release_version,
+        )
 
         # Engineers can narrow the workgroup view to only their assigned bugs.
         if role == "Engineer" and my_only:
             query = query.filter(Bug.engineer_id == user_id)
-    elif role == "Manager":
-        # Only include bugs whose engineer belongs to a workgroup managed by this manager
-        engineer_ids_subq = (
-               db.session.query(db.func.distinct(WorkgroupAssignment.employee_id))
-                .join(Workgroup, WorkgroupAssignment.workgroup_id == Workgroup.id)
-                .filter(Workgroup.manager_id == user_id)
-                .subquery()
-        )
-        
 
+    elif role == "Manager":
+        # Only include bugs whose engineer belongs to a workgroup managed by this manager.
+        # Unassigned bugs (engineer_id IS NULL) are excluded — they have no engineer link.
         engineer_ids = select(WorkgroupAssignment.employee_id).join(
             Workgroup,
             Workgroup.id == WorkgroupAssignment.workgroup_id
         ).where(
             Workgroup.manager_id == user_id
         )
+        query = query.filter(Bug.engineer_id.in_(engineer_ids))
 
-        query = query.filter(or_(Bug.engineer_id.in_(engineer_ids), Bug.engineer_id.is_(None)))
-        
     elif role == "Engineer":
         # Engineers only see their own bugs
-        query = query.filter(or_(Bug.engineer_id == user_id, Bug.engineer_id.is_(None)))
+        query = query.filter(Bug.engineer_id == user_id)
 
     bugs = query.all()
 
@@ -221,7 +221,7 @@ def bug_stats():
                 "pendingActions": 0
             })
         
-        query = query.filter(or_(Bug.engineer_id.in_(engineer_ids), Bug.engineer_id.is_(None)))
+        query = query.filter(Bug.engineer_id.in_(engineer_ids))
 
         if role == "Engineer" and my_only:
             query = query.filter(Bug.engineer_id == user_id)
@@ -232,10 +232,10 @@ def bug_stats():
             .filter(Workgroup.manager_id == user_id)
             .subquery()
         )
-       query = query.filter(or_(Bug.engineer_id.in_(engineer_ids_subq), Bug.engineer_id.is_(None)))
+       query = query.filter(Bug.engineer_id.in_(engineer_ids_subq))
 
     elif role == "Engineer":
-        query = query.filter(or_(Bug.engineer_id == user_id, Bug.engineer_id.is_(None)))
+        query = query.filter(Bug.engineer_id == user_id)
 
     total = query.count()
     repro = query.filter_by(bug_type="repro").count()

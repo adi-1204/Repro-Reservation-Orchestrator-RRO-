@@ -30,7 +30,7 @@ class BugTest(db.Model):
 
     # Index
     __table_args__ = (
-        db.Index('idx_bug', 'bug_id'),
+        db.Index('idx_bug_test_bug', 'bug_id'),
     )
 
     bug = db.relationship(

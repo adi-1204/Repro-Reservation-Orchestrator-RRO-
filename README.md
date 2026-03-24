@@ -71,29 +71,37 @@ MAIL_USE_TLS=True
 MAIL_USERNAME=your-email@gmail.com
 MAIL_PASSWORD=your-email-password
 MAIL_DEFAULT_SENDER=your-email@gmail.com
+
+# Bugzilla Integration (required for live bug ingestion)
+# Contact your team lead for the service account credentials.
+BUGZ_USER=service-account@hpe.com
+BUGZ_PASSWORD=your-bugzilla-password
+
+# ChatHPE Integration (required for AI analysis)
+# Obtain these from https://api.chathpe.it.hpe.com — do NOT share or commit.
+CHATHPE_CLIENT_ID=your-client-id-uuid
+CHATHPE_JWT_TOKEN=Bearer eyJ0eXAiOiJKV1Q...
+CHATHPE_USER_ID=your-user-id-uuid
+CHATHPE_USERNAME=YourDisplayName
 ```
 
-**Example `.env` file:**
-```env
-SECRET_KEY=my-super-secret-key-12345
-FLASK_ENV=development
-DEBUG=True
+> **⚠️ Security — Read This First:**
+> - **Never commit `.env` to git.** It is gitignored.
+> - **Never commit `chathpe_creds.json`.** It is gitignored.
+> - The Bugzilla and ChatHPE credentials are company-internal data. They must not be stored in any file that could be pushed to a public or shared repository.
+> - All credentials are loaded exclusively from environment variables at runtime and held only in process memory.
 
-DATABASE_HOST=localhost
-DATABASE_PORT=3306
-DATABASE_NAME=rro_database
-DATABASE_USER=root
-DATABASE_PASSWORD=mysql_password
+**Ingestion behaviour:**
+When a manager creates a workgroup or changes a workgroup's build version / engineer list, the app automatically fetches the real bugs for that build version from Bugzilla in a background thread and stores them in the local database. ChatHPE analysis is then generated for any new bugs. Poll `GET /api/workgroups/<id>/ingest_status` to check progress.
 
-MAIL_SERVER=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USE_TLS=True
-MAIL_USERNAME=myapp@gmail.com
-MAIL_PASSWORD=app_password_here
-MAIL_DEFAULT_SENDER=myapp@gmail.com
+**For local development without real credentials**, the mock scripts are still available:
+```bash
+# Start mock API (Bugzilla + ChatHPE simulators)
+python mock_api_server.py --port 5001
+
+# Ingest mock bug data
+python ingest_mock_bugs.py
 ```
-
-> **⚠️ Security Note:** Never commit the `.env` file to version control. It's already included in `.gitignore`.
 
 ### 6. Initialize Database
 

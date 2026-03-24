@@ -19,7 +19,7 @@ class BugComment(db.Model):
 
     # Index
     __table_args__ = (
-        db.Index('idx_bug', 'bug_id'),
+        db.Index('idx_bug_comment_bug', 'bug_id'),
     )
 
     bug = db.relationship(
