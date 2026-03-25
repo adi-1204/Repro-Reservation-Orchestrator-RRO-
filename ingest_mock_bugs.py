@@ -17,6 +17,9 @@ from app.models.bug_comments import BugComment
 from app.models.bug_tests import BugTest
 from app.models.ml_analysis import MLAnalysis
 from app.models.user import User
+from app.models.workgroup import Workgroup
+from app.models.workgroupAssignment import WorkgroupAssignment
+from werkzeug.security import generate_password_hash
 
 
 MOCK_BUGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mock_bugs.json")
@@ -142,23 +145,87 @@ def get_metadata_comment(comments):
 
 
 def ingest():
-    with open(MOCK_BUGS_FILE, "r", encoding="utf-8-sig") as handle:
-        bug_rows = json.load(handle)
-
-    inserted_bugs = 0
-    skipped_bugs = 0
-    tests_created = 0
-    created_comments = 0
-    created_ml = 0
-
     app = create_app()
-
     with app.app_context():
+        # 1. Ensure Manager exists
+        manager_email = "rishinatarajsundar@gmail.com"
+        manager = User.query.filter_by(email=manager_email).first()
+        if not manager:
+            manager = User(
+                first_name="Rishi",
+                last_name="Manager",
+                email=manager_email,
+                password=generate_password_hash("Admin@123"),
+                role="Manager"
+            )
+            db.session.add(manager)
+            db.session.flush()
+            print(f"Created manager: {manager_email}")
+        else:
+            # For debugging convenience, reset password to known value
+            manager.password = generate_password_hash("Admin@123")
+            db.session.add(manager)
+            print(f"Updated manager password: {manager_email}")
+
+        # 2. Ensure Default Workgroup exists
+        workgroup = Workgroup.query.filter_by(manager_id=manager.id).first()
+        if not workgroup:
+            workgroup = Workgroup(
+                name="Main Workgroup",
+                release_version="V1.0", # Shorter version to fit String(10)
+                status="Active",
+                manager_id=manager.id
+            )
+            db.session.add(workgroup)
+            db.session.flush()
+            print(f"Created workgroup: {workgroup.name}")
+
+        with open(MOCK_BUGS_FILE, "r", encoding="utf-8-sig") as handle:
+            bug_rows = json.load(handle)
+
+        inserted_bugs = 0
+        skipped_bugs = 0
+        tests_created = 0
+        created_comments = 0
+        created_ml = 0
+
         try:
             for row in bug_rows:
                 bug_code = str(row.get("Bug Id", "")).strip()
                 if not bug_code:
                     continue
+
+                source_status = row.get("Status")
+                assignee_email = (row.get("Assignee") or "").strip()
+
+                engineer = None
+                if assignee_email:
+                    engineer = User.query.filter(db.func.lower(User.email) == assignee_email.lower()).first()
+                    if not engineer:
+                        first = assignee_email.split(".")[0].capitalize()[:10]
+                        engineer = User(
+                            first_name=first,
+                            last_name="Engineer",
+                            email=assignee_email,
+                            password=generate_password_hash("Engineer@123"),
+                            role="Engineer"
+                        )
+                        db.session.add(engineer)
+                        db.session.flush()
+                        print(f"Created engineer: {assignee_email}")
+                    
+                    # Ensure engineer is assigned to the workgroup
+                    assignment = WorkgroupAssignment.query.filter_by(
+                        workgroup_id=workgroup.id,
+                        employee_id=engineer.id
+                    ).first()
+                    if not assignment:
+                        assignment = WorkgroupAssignment(
+                            workgroup_id=workgroup.id,
+                            employee_id=engineer.id
+                        )
+                        db.session.add(assignment)
+                        print(f"Assigned {assignee_email} to {workgroup.name}")
 
                 existing = Bug.query.filter_by(bug_code=bug_code).first()
 
@@ -181,7 +248,7 @@ def ingest():
                         status=map_bug_status(source_status),
                         engineer_id=engineer.id if engineer else None,
                         bug_type=map_bug_type(source_status),
-                        resource_group=(row.get("Build") or "").strip() or None,
+                        resource_group=workgroup.release_version, # Fix: match workgroup version
                         summary=(row.get("Component") or "").strip() or None,
                     )
                     db.session.add(bug)
@@ -235,6 +302,8 @@ def ingest():
 
                 if existing:
                     bug.bug_name = row.get("Bug Name", None)
+                    bug.engineer_id = engineer.id if engineer else None
+                    bug.resource_group = workgroup.release_version
                     db.session.add(bug)
 
                 if not existing:

@@ -689,3 +689,381 @@ async function init() {
 
 document.addEventListener('DOMContentLoaded', init);
 
+/* ── Toast Notification ── */
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.className = `toast show ${type}`;
+    setTimeout(() => {
+        toast.className = 'toast';
+    }, 3000);
+}
+
+/* =========================================
+   Reserve Station Modal — Refined
+   ========================================= */
+
+let reserveActiveTab = 'byName';
+let allBugOptions = [];
+let allStationOptions = [];
+let selectedStations = [];
+
+/* ── DOM Getters ── */
+const reserveDom = {
+    get overlay()          { return document.getElementById('reserveModalOverlay'); },
+    get toggleSlider()     { return document.getElementById('reserveToggleSlider'); },
+    get tabByName()        { return document.getElementById('tabByName'); },
+    get tabByConfig()      { return document.getElementById('tabByConfig'); },
+    get panelByName()      { return document.getElementById('panelByName'); },
+    get panelByConfig()    { return document.getElementById('panelByConfig'); },
+    get bugIdInput()       { return document.getElementById('reserveBugId'); },
+    get bugIdDropdown()    { return document.getElementById('bugIdDropdown'); },
+    get stationInput()     { return document.getElementById('reserveStationName'); },
+    get stationDropdown()  { return document.getElementById('stationDropdown'); },
+    get stationTags()      { return document.getElementById('stationTags'); },
+    get stationDropdownGroup() { return document.getElementById('stationDropdownGroup'); },
+    get specifyStation()   { return document.getElementById('reserveSpecifyStation'); },
+    get specifyStationGroup()  { return document.getElementById('specifyStationGroup'); },
+    get stationManual()    { return document.getElementById('reserveStationManual'); },
+    get resourceGroup()    { return document.getElementById('reserveResourceGroup'); },
+    get numNodes()         { return document.getElementById('reserveNumNodes'); },
+    get codeFloor()        { return document.getElementById('reserveCodeFloor'); },
+    get numPDs()           { return document.getElementById('reserveNumPDs'); },
+};
+
+/* ── Open / Close ── */
+function openReserveModal() {
+    populateReserveDropdowns();
+    reserveDom.overlay.classList.add('open');
+}
+
+function closeReserveModal() {
+    reserveDom.overlay.classList.remove('open');
+    resetReserveForm();
+}
+
+function resetReserveForm() {
+    switchReserveTab('byName');
+    selectedStations = [];
+    renderStationTags();
+
+    // Clear any existing errors
+    document.querySelectorAll('.field-error').forEach(el => el.classList.remove('visible'));
+    document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+
+    if (reserveDom.bugIdInput) reserveDom.bugIdInput.value = '';
+    if (reserveDom.stationInput) reserveDom.stationInput.value = '';
+    if (reserveDom.specifyStation) reserveDom.specifyStation.checked = false;
+    if (reserveDom.stationManual) reserveDom.stationManual.value = '';
+    if (reserveDom.specifyStationGroup) reserveDom.specifyStationGroup.classList.add('hidden');
+    if (reserveDom.stationDropdownGroup) reserveDom.stationDropdownGroup.classList.remove('hidden');
+    if (reserveDom.resourceGroup) reserveDom.resourceGroup.value = '';
+    if (reserveDom.numNodes) reserveDom.numNodes.value = '';
+    if (reserveDom.codeFloor) reserveDom.codeFloor.value = '';
+    if (reserveDom.numPDs) reserveDom.numPDs.value = '';
+    const rcNo = document.querySelector('input[name="reserveRC"][value="no"]');
+    if (rcNo) rcNo.checked = true;
+    // Close dropdowns
+    reserveDom.bugIdDropdown?.classList.add('hidden');
+    reserveDom.stationDropdown?.classList.add('hidden');
+}
+
+/* ── Sliding Toggle ── */
+function switchReserveTab(tab) {
+    reserveActiveTab = tab;
+    reserveDom.tabByName.classList.toggle('active', tab === 'byName');
+    reserveDom.tabByConfig.classList.toggle('active', tab === 'byConfig');
+    reserveDom.panelByName.classList.toggle('hidden', tab !== 'byName');
+    reserveDom.panelByConfig.classList.toggle('hidden', tab !== 'byConfig');
+    // Slide the indicator
+    if (reserveDom.toggleSlider) {
+        reserveDom.toggleSlider.classList.toggle('right', tab === 'byConfig');
+    }
+}
+
+/* ── Combobox: Bug ID (single select, type-ahead) ── */
+function renderBugIdDropdown(filter = '') {
+    const dropdown = reserveDom.bugIdDropdown;
+    if (!dropdown) return;
+    const filterLower = filter.toLowerCase();
+    const filtered = allBugOptions.filter(b =>
+        b.id.toLowerCase().includes(filterLower) ||
+        (b.name || '').toLowerCase().includes(filterLower)
+    );
+    if (filtered.length === 0) {
+        dropdown.innerHTML = '<div class="combobox-empty">No matching bugs</div>';
+    } else {
+        dropdown.innerHTML = filtered.map(b =>
+            `<div class="combobox-option" data-value="${escapeHtml(b.id)}">${escapeHtml(b.id)} — ${escapeHtml(b.name || 'Unnamed')}</div>`
+        ).join('');
+    }
+    dropdown.classList.remove('hidden');
+    // click handlers
+    dropdown.querySelectorAll('.combobox-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            reserveDom.bugIdInput.value = opt.dataset.value;
+            dropdown.classList.add('hidden');
+        });
+    });
+}
+
+/* ── Combobox: Station Name (multi-select, up to 3) ── */
+function renderStationDropdown(filter = '') {
+    const dropdown = reserveDom.stationDropdown;
+    if (!dropdown) return;
+    const filterLower = filter.toLowerCase();
+    const filtered = allStationOptions.filter(s =>
+        s.toLowerCase().includes(filterLower)
+    );
+    if (filtered.length === 0) {
+        dropdown.innerHTML = '<div class="combobox-empty">No matching stations</div>';
+    } else {
+        dropdown.innerHTML = filtered.map(s => {
+            const isSelected = selectedStations.includes(s);
+            const isDisabled = !isSelected && selectedStations.length >= 3;
+            const classes = ['combobox-option'];
+            if (isSelected) classes.push('selected');
+            if (isDisabled) classes.push('disabled');
+            return `<div class="${classes.join(' ')}" data-value="${escapeHtml(s)}">${escapeHtml(s)}</div>`;
+        }).join('');
+    }
+    dropdown.classList.remove('hidden');
+    dropdown.querySelectorAll('.combobox-option:not(.disabled)').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const val = opt.dataset.value;
+            if (selectedStations.includes(val)) {
+                selectedStations = selectedStations.filter(s => s !== val);
+            } else if (selectedStations.length < 3) {
+                selectedStations.push(val);
+            }
+            renderStationTags();
+            renderStationDropdown(reserveDom.stationInput?.value || '');
+        });
+    });
+}
+
+function renderStationTags() {
+    const container = reserveDom.stationTags;
+    if (!container) return;
+    container.innerHTML = selectedStations.map(s =>
+        `<span class="combobox-tag">${escapeHtml(s)}<button class="combobox-tag-remove" data-station="${escapeHtml(s)}" type="button">×</button></span>`
+    ).join('');
+    container.querySelectorAll('.combobox-tag-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectedStations = selectedStations.filter(s => s !== btn.dataset.station);
+            renderStationTags();
+            renderStationDropdown(reserveDom.stationInput?.value || '');
+        });
+    });
+}
+
+/* ── Populate Dropdowns ── */
+async function populateReserveDropdowns() {
+    // Bug IDs from loaded data
+    allBugOptions = [...allReproBugs, ...allTestBugs].map(b => ({ id: b.id, name: b.bug_name }));
+
+    // Stations from API
+    const stationsData = await apiFetch('/api/stations');
+    allStationOptions = stationsData?.stations || [];
+
+    // Resource Group
+    const rgSelect = reserveDom.resourceGroup;
+    if (rgSelect) {
+        const rgSet = new Set([...allReproBugs, ...allTestBugs].map(b => b.resourceGroup).filter(Boolean));
+        rgSelect.innerHTML = '<option value="">Select a Resource Group...</option>';
+        rgSet.forEach(rg => {
+            const opt = document.createElement('option');
+            opt.value = rg;
+            opt.textContent = rg;
+            rgSelect.appendChild(opt);
+        });
+    }
+}
+
+/* ── Numbers Only Input Enforcement ── */
+function enforceNumbersOnly(input) {
+    input.addEventListener('input', () => {
+        input.value = input.value.replace(/[^0-9]/g, '');
+    });
+    input.addEventListener('keydown', (e) => {
+        // Allow: backspace, delete, tab, escape, enter, arrows
+        if ([8, 9, 13, 27, 46, 37, 38, 39, 40].includes(e.keyCode)) return;
+        // Allow Ctrl+A/C/V/X
+        if ((e.ctrlKey || e.metaKey) && [65, 67, 86, 88].includes(e.keyCode)) return;
+        // Block non-digits
+        if (e.key && !/^[0-9]$/.test(e.key)) e.preventDefault();
+    });
+}
+
+/* ── Submit Handler ── */
+async function handleReserveSubmit() {
+    // Clear previous errors
+    document.querySelectorAll('.field-error').forEach(el => el.classList.remove('visible'));
+    document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+    
+    let isValid = true;
+    let payload;
+
+    if (reserveActiveTab === 'byName') {
+        const bugId = reserveDom.bugIdInput?.value?.trim();
+        const specifyMode = reserveDom.specifyStation?.checked;
+        let stations;
+
+        if (specifyMode) {
+            const manual = reserveDom.stationManual?.value?.trim();
+            stations = manual ? manual.split(',').map(s => s.trim()).filter(Boolean) : [];
+        } else {
+            stations = [...selectedStations];
+        }
+
+        if (!bugId) {
+            document.getElementById('errBugId')?.classList.add('visible');
+            document.getElementById('bugIdCombobox')?.classList.add('input-error');
+            isValid = false;
+        }
+        
+        if (stations.length === 0) {
+            if (specifyMode) {
+                document.getElementById('errStationManual')?.classList.add('visible');
+                reserveDom.stationManual?.classList.add('input-error');
+            } else {
+                document.getElementById('errStation')?.classList.add('visible');
+                document.getElementById('stationCombobox')?.classList.add('input-error');
+            }
+            isValid = false;
+        }
+
+        if (!isValid) return;
+
+        payload = {
+            type: 'by_name',
+            bug_id: bugId,
+            stations: stations,
+            specify_station: specifyMode || false,
+        };
+    } else {
+        const resourceGroup = reserveDom.resourceGroup?.value;
+        const numNodes = reserveDom.numNodes?.value?.trim();
+        const rcValue = document.querySelector('input[name="reserveRC"]:checked')?.value;
+
+        if (!resourceGroup) {
+            document.getElementById('errResourceGroup')?.classList.add('visible');
+            reserveDom.resourceGroup?.classList.add('input-error');
+            isValid = false;
+        }
+        
+        if (!numNodes) {
+            document.getElementById('errNumNodes')?.classList.add('visible');
+            reserveDom.numNodes?.classList.add('input-error');
+            isValid = false;
+        }
+
+        if (!isValid) return;
+
+        payload = {
+            type: 'by_config',
+            resource_group: resourceGroup,
+            number_of_nodes: parseInt(numNodes, 10),
+            code_floor: reserveDom.codeFloor?.value?.trim() || null,
+            number_of_pds: reserveDom.numPDs?.value ? parseInt(reserveDom.numPDs.value, 10) : null,
+            rc: rcValue === 'yes',
+        };
+    }
+
+    console.log('[Reserve] Submitting:', payload);
+
+    const result = await apiFetch('/api/reservations', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+
+    if (result) {
+        showToast('Reservation submitted successfully!', 'success');
+        closeReserveModal();
+    } else {
+        showToast('Failed to submit reservation. Check console for details.', 'error');
+    }
+}
+
+/* ── Show Reserve Button (Manager only) ── */
+function showReserveButtonIfManager() {
+    if (currentUser?.role === 'Manager') {
+        const btn = document.getElementById('btnReserveStation');
+        if (btn) btn.style.display = '';
+    }
+}
+
+/* ── Wire Up Events ── */
+document.addEventListener('DOMContentLoaded', () => {
+    // Open / Close
+    document.getElementById('btnReserveStation')?.addEventListener('click', openReserveModal);
+    document.getElementById('reserveModalClose')?.addEventListener('click', closeReserveModal);
+    document.getElementById('reserveBtnCancel')?.addEventListener('click', closeReserveModal);
+    document.getElementById('reserveModalOverlay')?.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeReserveModal();
+    });
+
+    // Sliding toggle
+    document.getElementById('tabByName')?.addEventListener('click', () => switchReserveTab('byName'));
+    document.getElementById('tabByConfig')?.addEventListener('click', () => switchReserveTab('byConfig'));
+
+    // Bug ID combobox
+    const bugInput = document.getElementById('reserveBugId');
+    if (bugInput) {
+        bugInput.addEventListener('focus', () => renderBugIdDropdown(bugInput.value));
+        bugInput.addEventListener('input', () => renderBugIdDropdown(bugInput.value));
+    }
+
+    // Station combobox
+    const stationInput = document.getElementById('reserveStationName');
+    if (stationInput) {
+        stationInput.addEventListener('focus', () => renderStationDropdown(stationInput.value));
+        stationInput.addEventListener('input', () => renderStationDropdown(stationInput.value));
+    }
+
+    // Close combobox dropdowns on outside click
+    document.addEventListener('click', (e) => {
+        const bugCb = document.getElementById('bugIdCombobox');
+        const staCb = document.getElementById('stationCombobox');
+        if (bugCb && !bugCb.contains(e.target)) {
+            document.getElementById('bugIdDropdown')?.classList.add('hidden');
+        }
+        if (staCb && !staCb.contains(e.target)) {
+            document.getElementById('stationDropdown')?.classList.add('hidden');
+        }
+    });
+
+    // Specify Station toggle
+    const specifyChk = document.getElementById('reserveSpecifyStation');
+    if (specifyChk) {
+        specifyChk.addEventListener('change', () => {
+            const dropdownGroup = document.getElementById('stationDropdownGroup');
+            const manualGroup = document.getElementById('specifyStationGroup');
+            if (specifyChk.checked) {
+                dropdownGroup?.classList.add('hidden');
+                manualGroup?.classList.remove('hidden');
+            } else {
+                dropdownGroup?.classList.remove('hidden');
+                manualGroup?.classList.add('hidden');
+            }
+        });
+    }
+
+    // Numbers-only inputs
+    const numNodesInput = document.getElementById('reserveNumNodes');
+    const numPDsInput = document.getElementById('reserveNumPDs');
+    if (numNodesInput) enforceNumbersOnly(numNodesInput);
+    if (numPDsInput) enforceNumbersOnly(numPDsInput);
+
+    // Submit
+    document.getElementById('reserveBtnSubmit')?.addEventListener('click', handleReserveSubmit);
+});
+
+// Patch loadCurrentUser to show Reserve button for managers
+const _originalLoadCurrentUser = loadCurrentUser;
+loadCurrentUser = async function() {
+    await _originalLoadCurrentUser();
+    showReserveButtonIfManager();
+};

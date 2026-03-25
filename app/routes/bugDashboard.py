@@ -392,6 +392,43 @@ def get_bug_tests(bug_id):
 
 
 # --------------------------------------------------
+# GET STATION NAMES (for reserve modal dropdown)
+# --------------------------------------------------
+@bug.route("/api/stations", methods=["GET"])
+def get_stations():
+    user_id = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    station_names = (
+        db.session.query(db.func.distinct(BugTest.station_name))
+        .filter(BugTest.station_name.isnot(None))
+        .all()
+    )
+    stations = sorted([s[0] for s in station_names if s[0]])
+    return jsonify({"stations": stations})
+
+
+# --------------------------------------------------
+# RESERVE STATION (stub - accepts data, does not persist)
+# --------------------------------------------------
+@bug.route("/api/reservations", methods=["POST"])
+def create_reservation():
+    user_id = get_current_user_id()
+    role = get_current_role()
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    if role != "Manager":
+        return jsonify({"error": "Only managers can reserve stations"}), 403
+
+    data = request.json
+    print(f"[Reservation] Received: {data}", flush=True)
+
+    return jsonify({
+        "message": "Reservation received (stub)",
+        "data": data,
+    }), 201
+# --------------------------------------------------
 # GET BUG ML ANALYSIS
 # --------------------------------------------------
 @bug.route("/api/bugs/<int:bug_id>/analysis", methods=["GET"])

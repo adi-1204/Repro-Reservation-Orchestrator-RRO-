@@ -1494,3 +1494,370 @@ body {
         display: none;
     }
 }
+
+/* ── Page Header Row ── */
+.page-header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+/* ── Reserve Station Button ── */
+.btn-reserve {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: box-shadow 0.2s, transform 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.btn-reserve:hover {
+    box-shadow: 0 4px 18px rgba(124, 58, 237, 0.35);
+    transform: translateY(-1px);
+}
+
+.btn-reserve:active {
+    transform: translateY(0);
+}
+
+/* ── Sliding Toggle ── */
+.reserve-toggle {
+    position: relative;
+    display: flex;
+    background: #f1f5f9;
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 24px;
+}
+
+.reserve-toggle-slider {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: calc(50% - 4px);
+    height: calc(100% - 8px);
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+}
+
+.reserve-toggle-slider.right {
+    transform: translateX(100%);
+}
+
+.reserve-toggle-btn {
+    flex: 1;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+}
+
+.reserve-toggle-btn:hover {
+    color: #334155;
+}
+
+.reserve-toggle-btn.active {
+    color: #7c3aed;
+}
+
+/* ── Reserve Panels ── */
+.reserve-panel {
+    animation: panelFadeIn 0.2s ease;
+}
+
+.reserve-panel.hidden {
+    display: none;
+}
+
+.form-group.hidden {
+    display: none;
+}
+
+/* ── Inline Field Errors ── */
+.field-error {
+    display: none;
+    font-size: 12px;
+    color: #ef4444;
+    margin-top: 6px;
+    padding-left: 2px;
+    animation: errorSlideIn 0.2s ease;
+}
+
+.field-error.visible {
+    display: block;
+}
+
+@keyframes errorSlideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.form-input.input-error {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.form-select.input-error {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.radio-group.input-error .radio-label {
+    border-color: #ef4444;
+}
+
+@keyframes panelFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Form Select (dropdown) ── */
+.form-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+    cursor: pointer;
+}
+
+.form-select:focus {
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+/* ── Combobox ── */
+.combobox {
+    position: relative;
+}
+
+.combobox-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 300;
+    margin-top: 4px;
+}
+
+.combobox-dropdown.hidden {
+    display: none;
+}
+
+.combobox-option {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #334155;
+    cursor: pointer;
+    transition: background 0.12s;
+    border-bottom: 1px solid #f8fafc;
+}
+
+.combobox-option:last-child {
+    border-bottom: none;
+}
+
+.combobox-option:hover,
+.combobox-option.highlighted {
+    background: #f8f7ff;
+    color: #7c3aed;
+}
+
+.combobox-option.selected {
+    background: #ede9fe;
+    color: #6d28d9;
+    font-weight: 600;
+}
+
+.combobox-option.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.combobox-empty {
+    padding: 14px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 12.5px;
+}
+
+/* ── Combobox Tags (multi-select chips) ── */
+.combobox-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 0;
+}
+
+.combobox-tags:empty {
+    display: none;
+}
+
+.combobox-tags:not(:empty) {
+    margin-bottom: 8px;
+}
+
+.combobox-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: #ede9fe;
+    color: #6d28d9;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.combobox-tag-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border: none;
+    background: rgba(109, 40, 217, 0.15);
+    color: #6d28d9;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    transition: background 0.15s;
+}
+
+.combobox-tag-remove:hover {
+    background: rgba(109, 40, 217, 0.3);
+}
+
+/* ── Form Hint ── */
+.form-hint {
+    font-size: 11px;
+    font-weight: 400;
+    color: #94a3b8;
+    margin-left: 4px;
+}
+
+/* ── Checkbox Group ── */
+.form-group--checkbox {
+    padding: 4px 0 8px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #7c3aed;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+/* ── Radio Group ── */
+.radio-group {
+    display: flex;
+    gap: 24px;
+    padding: 4px 0;
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    padding: 8px 16px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    transition: all 0.2s;
+}
+
+.radio-label:hover {
+    border-color: #c4b5fd;
+    background: #faf5ff;
+}
+
+.radio-label:has(input:checked) {
+    border-color: #7c3aed;
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.radio-label input[type="radio"] {
+    display: none;
+}
+
+.radio-dot {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #cbd5e1;
+    border-radius: 50%;
+    position: relative;
+    transition: border-color 0.2s;
+    flex-shrink: 0;
+}
+
+.radio-dot::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 8px;
+    height: 8px;
+    background: #7c3aed;
+    border-radius: 50%;
+    transform: scale(0);
+    transition: transform 0.2s;
+}
+
+.radio-label:has(input:checked) .radio-dot {
+    border-color: #7c3aed;
+}
+
+.radio-label:has(input:checked) .radio-dot::after {
+    transform: scale(1);
+}
+
+/* -- Toast Notification -- */
+.toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px); background: #10b981; color: white; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); opacity: 0; visibility: hidden; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 9999; }
+.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; visibility: visible; }
+.toast.error { background: #ef4444; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
