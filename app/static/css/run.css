@@ -1,0 +1,543 @@
+/* =========================================
+   RRO Run Page — Stylesheet
+   Matches the existing RRO design system
+   ========================================= */
+
+/* ── Run Cards ── */
+.run-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 24px 28px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    margin-bottom: 20px;
+}
+
+.run-card-header {
+    margin-bottom: 20px;
+}
+
+.run-card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 4px;
+}
+
+.run-card-subtitle {
+    font-size: 13px;
+    color: #64748b;
+    padding-left: 28px;
+}
+
+/* ── Radio Cards ── */
+.run-radio-group {
+    display: flex;
+    gap: 14px;
+}
+
+.run-radio-card {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    user-select: none;
+}
+
+.run-radio-card:hover {
+    border-color: #c4b5fd;
+    background: #faf5ff;
+}
+
+.run-radio-card:has(input:checked) {
+    border-color: #7c3aed;
+    background: #f5f3ff;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.run-radio-card input[type="radio"] {
+    display: none;
+}
+
+.run-radio-dot {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #cbd5e1;
+    border-radius: 50%;
+    position: relative;
+    flex-shrink: 0;
+    transition: border-color 0.2s;
+}
+
+.run-radio-dot::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #7c3aed;
+    transform: scale(0);
+    transition: transform 0.2s;
+}
+
+.run-radio-card:has(input:checked) .run-radio-dot {
+    border-color: #7c3aed;
+}
+
+.run-radio-card:has(input:checked) .run-radio-dot::after {
+    transform: scale(1);
+}
+
+.run-radio-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.run-radio-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.run-radio-desc {
+    font-size: 12px;
+    color: #64748b;
+}
+
+/* ── Two column layout ── */
+.run-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px 28px;
+}
+
+/* ── Field groups ── */
+.run-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.run-field-group--center {
+    justify-content: center;
+}
+
+.run-field-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.run-field-hint {
+    font-size: 11px;
+    font-weight: 400;
+    color: #94a3b8;
+}
+
+.run-required {
+    color: #ef4444;
+}
+
+.run-field-error {
+    font-size: 12px;
+    color: #ef4444;
+    margin-top: 2px;
+}
+
+.run-field-error.hidden {
+    display: none;
+}
+
+/* ── Inputs ── */
+.run-combobox {
+    position: relative;
+}
+
+.run-input-wrap {
+    position: relative;
+}
+
+.run-input-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.run-input {
+    padding: 10px 14px 10px 34px;
+    font-size: 13.5px;
+    font-family: inherit;
+    color: #0f172a;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: #fff;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.run-input-full {
+    padding-left: 14px;
+}
+
+.run-input::placeholder {
+    color: #94a3b8;
+}
+
+.run-input:focus {
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.run-input.input-error {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* ── Dropdowns ── */
+.run-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 300;
+}
+
+.run-dropdown.hidden {
+    display: none;
+}
+
+.run-dropdown-item {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #334155;
+    cursor: pointer;
+    transition: background 0.12s;
+    border-bottom: 1px solid #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.run-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.run-dropdown-item:hover {
+    background: #f5f3ff;
+    color: #7c3aed;
+}
+
+.run-dropdown-item.selected {
+    background: #ede9fe;
+    color: #6d28d9;
+    font-weight: 600;
+}
+
+.run-dropdown-item--add {
+    color: #7c3aed;
+    font-weight: 600;
+    font-style: italic;
+}
+
+.run-dropdown-item--add:hover {
+    background: #ede9fe;
+}
+
+.run-dropdown-empty {
+    padding: 14px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 12.5px;
+}
+
+/* ── Selected Tags ── */
+.run-selected-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.run-selected-tags:empty {
+    display: none;
+}
+
+.run-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: #ede9fe;
+    color: #6d28d9;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+}
+
+.run-tag-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border: none;
+    background: rgba(109, 40, 217, 0.15);
+    color: #6d28d9;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    transition: background 0.15s;
+    padding: 0;
+}
+
+.run-tag-remove:hover {
+    background: rgba(109, 40, 217, 0.3);
+}
+
+/* ── Slider Toggle ── */
+.run-slider-toggle {
+    position: relative;
+    display: inline-flex;
+    background: #f1f5f9;
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 10px;
+}
+
+/* Width and left are set by JavaScript to match the active button exactly */
+.run-slider-track {
+    position: absolute;
+    top: 4px;
+    height: calc(100% - 8px);
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+}
+
+.run-slider-btn {
+    position: relative;
+    z-index: 1;
+    padding: 10px 24px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.2s;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.run-slider-btn.active {
+    color: #7c3aed;
+}
+
+.run-slider-hint {
+    font-size: 12.5px;
+    color: #94a3b8;
+    margin: 0;
+}
+
+/* ── Panel animation ── */
+.run-panel {
+    animation: runPanelIn 0.22s ease;
+}
+
+.run-panel.hidden {
+    display: none;
+}
+
+@keyframes runPanelIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Provision Setup tags ── */
+.run-provision-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.run-provision-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.run-provision-tags:empty {
+    display: none;
+}
+
+.run-provision-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: #faf5ff;
+    border: 1px solid #c4b5fd;
+    color: #6d28d9;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+}
+
+.run-provision-remove {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+}
+
+.run-provision-remove:hover {
+    color: #ef4444;
+}
+
+/* ── Toggle Switch ── */
+.run-toggle-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    gap: 16px;
+    transition: border-color 0.2s;
+}
+
+.run-toggle-label:hover {
+    border-color: #c4b5fd;
+}
+
+.run-toggle-text {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #0f172a;
+    display: block;
+}
+
+.run-toggle-sub {
+    font-size: 11.5px;
+    color: #64748b;
+    display: block;
+    margin-top: 2px;
+}
+
+.run-toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.run-toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.run-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: #cbd5e1;
+    border-radius: 12px;
+    transition: background 0.25s;
+    cursor: pointer;
+}
+
+.run-toggle-slider::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 3px;
+    width: 18px;
+    height: 18px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.25s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.run-toggle-switch input:checked + .run-toggle-slider {
+    background: #7c3aed;
+}
+
+.run-toggle-switch input:checked + .run-toggle-slider::before {
+    transform: translateX(20px);
+}
+
+/* ── Submit Row ── */
+.run-submit-row {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 16px;
+    margin-top: 4px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.run-btn-submit {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 28px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.run-btn-submit:hover {
+    box-shadow: 0 4px 18px rgba(124, 58, 237, 0.35);
+    transform: translateY(-1px);
+}
+
+.run-btn-submit:active {
+    transform: translateY(0);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .run-two-col { grid-template-columns: 1fr; }
+    .run-radio-group { flex-direction: column; }
+}
