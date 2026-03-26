@@ -26,6 +26,14 @@ def bug_management():
         return redirect(url_for("auth.login"))
 
     workgroup_id = request.args.get('workgroup_id', type=int)
+
+    # Engineers must use the engineer-specific bug management page,
+    # which includes reserve controls and engineer-only behaviors.
+    if current_role == "Engineer":
+        if workgroup_id:
+            return redirect(url_for("engineer.engineer_bug_management", workgroup_id=workgroup_id))
+        return redirect(url_for("engineer.engineer_bug_management"))
+
     workgroup = None
     
     if workgroup_id:

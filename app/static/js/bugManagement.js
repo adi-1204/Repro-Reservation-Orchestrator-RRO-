@@ -1061,14 +1061,24 @@ async function handleReserveSubmit() {
 
 /* ── Show Reserve Button (Engineer only) ── */
 function showReserveButtonIfEngineer() {
-    if (currentUser?.role === 'Engineer') {
+    const isEngineerPage = window.location.pathname.includes('/engineer/bug_management');
+    if (currentUser?.role === 'Engineer' || isEngineerPage) {
         const btn = document.getElementById('btnReserveStation');
-        if (btn) btn.style.display = '';
+        if (btn) {
+            btn.hidden = false;
+            btn.style.removeProperty('display');
+            btn.style.setProperty('display', 'inline-flex', 'important');
+            btn.style.setProperty('visibility', 'visible', 'important');
+            btn.style.setProperty('opacity', '1', 'important');
+        }
     }
 }
 
 /* ── Wire Up Events ── */
 document.addEventListener('DOMContentLoaded', () => {
+    showReserveButtonIfEngineer();
+    setTimeout(showReserveButtonIfEngineer, 300);
+
     // Open / Close
     document.getElementById('btnReserveStation')?.addEventListener('click', openReserveModal);
     document.getElementById('reserveModalClose')?.addEventListener('click', closeReserveModal);
@@ -1139,3 +1149,8 @@ loadCurrentUser = async function() {
     await _originalLoadCurrentUser();
     showReserveButtonIfEngineer();
 };
+
+window.addEventListener('load', () => {
+    showReserveButtonIfEngineer();
+    setTimeout(showReserveButtonIfEngineer, 600);
+});

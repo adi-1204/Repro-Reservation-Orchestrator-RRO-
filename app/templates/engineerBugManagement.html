@@ -99,7 +99,7 @@
                     <h1 class="page-title">Bug Management</h1>
                     <p class="page-subtitle">Manage repro and test bugs, assign resource groups, and schedule test runs</p>
                 </div>
-                <button class="btn-reserve" id="btnReserveStation" style="display:none;">
+                <button class="btn-reserve" id="btnReserveStation">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="2" y="3" width="12" height="11" rx="2" />
                         <path d="M5 3V1M11 3V1M2 7h12" />
@@ -404,7 +404,7 @@
         const authToken = "{{ auth_token }}";
     </script>
     <script src="{{ url_for('static', filename='js/authSession.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/bugManagement.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/bugManagement.js') }}?v=reserve-visibility-compat-63db53f" defer></script>
 </body>
 
 </html>
