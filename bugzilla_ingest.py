@@ -519,7 +519,7 @@ class BugzillaIngester:
     # Main ingestion entry point
     # ------------------------------------------------------------------
 
-    def ingest(self, db_session, user_email_map, chathpe_creds=None):
+    def ingest(self, db_session, user_email_map, chathpe_creds=None, workgroup_id=None):
         """
         Fetch bugs, filter to REPRODUCE status, upsert Bug + BugComment +
         BugTest + BugStation rows, then generate ChatHPE ML analysis via RAG.
@@ -529,6 +529,7 @@ class BugzillaIngester:
             user_email_map:  {lowercase email -> User.id} for engineer linking.
             chathpe_creds:   dict with client_id/jwt_token/user_id/username
                              (None = skip analysis step).
+            workgroup_id:    Workgroup ID to associate bugs with (None = no FK link).
 
         Returns:
             dict: {ingested, updated, skipped, errors}
@@ -618,6 +619,7 @@ class BugzillaIngester:
                 # Always use the workgroup's release_version so cascade delete
                 # in delete_workgroup() can find these bugs reliably.
                 bug.resource_group = self.release_version[:100]
+                bug.workgroup_id = workgroup_id
 
                 assignee = (raw.get("assigned_to") or "").lower()
                 bug.engineer_id = user_email_map.get(assignee)

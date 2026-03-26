@@ -31,6 +31,7 @@ let currentUser = null;
 let workgroups = [];
 let engineers = [];
 let currentFilter = 'all';
+let currentWorkgroupId = null;
 
 function getAuthHeaders(headers = {}) {
     return window.RROAuth ? window.RROAuth.getAuthHeaders(headers) : headers;
@@ -399,7 +400,7 @@ function attachCardMenuListeners() {
             if (action === 'delete') handleDeleteWorkgroup(id);
             else if (action === 'markdone') handleMarkDone(id);
             else if (action === 'edit') handleEditWorkgroup(id);
-            else if (action === 'view') window.location.href = withAuthUrl(`/bug_management?workgroup_id=${id}`);
+            else if (action === 'view') openWorkgroupDashboard(id);
         });
     });
 
@@ -408,7 +409,7 @@ function attachCardMenuListeners() {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             const id = parseInt(btn.dataset.id);
-            window.location.href = withAuthUrl(`/bug_management?workgroup_id=${id}`);
+            openWorkgroupDashboard(id);
         });
     });
 }
@@ -416,6 +417,18 @@ function attachCardMenuListeners() {
 function closeAllDropdowns() {
     document.querySelectorAll('.wg-card-dropdown').forEach(d => d.classList.add('hidden'));
     dom.profileDropdown.classList.add('hidden');
+}
+
+function resetWorkgroupStatsUI() {
+    document.querySelectorAll('.stat-count, .bug-count, .stats-number').forEach(el => {
+        el.textContent = '0';
+    });
+}
+
+function openWorkgroupDashboard(id) {
+    currentWorkgroupId = id;
+    resetWorkgroupStatsUI();
+    window.location.href = withAuthUrl(`/bug_management?workgroup_id=${id}`);
 }
 
 // Close dropdowns on outside click

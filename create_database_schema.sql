@@ -68,17 +68,20 @@ CREATE TABLE Bugs (
     bug_name VARCHAR(255),
     bug_type ENUM('repro', 'test') NOT NULL,
     engineer_id INT,
+    workgroup_id INT NULL,
     summary VARCHAR(255),
     station_config VARCHAR(100),
     resource_group VARCHAR(100),
     status ENUM('pending', 'running', 'scheduled', 'completed') DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (engineer_id) REFERENCES Users(ID) ON DELETE SET NULL,
+    FOREIGN KEY (workgroup_id) REFERENCES Workgroup_Schema(ID) ON DELETE SET NULL,
     INDEX idx_bug_code (bug_code),
     INDEX idx_engineer (engineer_id),
     INDEX idx_priority (priority),
     INDEX idx_status (status),
-    INDEX idx_bug_type (bug_type)
+    INDEX idx_bug_type (bug_type),
+    INDEX idx_bug_workgroup (workgroup_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================

@@ -46,6 +46,12 @@ class Workgroup(db.Model):
         cascade="all, delete-orphan"
     )
 
+    bugs = db.relationship(
+        "Bug",
+        back_populates="workgroup",
+        cascade="all, delete-orphan"
+    )
+
     @property
     def is_completed(self):
         return self.status == "Completed"

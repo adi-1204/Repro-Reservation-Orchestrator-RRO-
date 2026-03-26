@@ -9,6 +9,7 @@ from app.models.bug_stations import BugStation
 from app.models.bug_comments import BugComment
 from app.models.ml_analysis import MLAnalysis
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_
 from app.auth_utils import (
     get_current_auth_token,
     get_current_role,
@@ -68,7 +69,7 @@ def _run_ingestion_thread(app, workgroup_id, release_version):
                 bugz_user=app.config.get("BUGZ_USER"),
                 bugz_password=app.config.get("BUGZ_PASSWORD"),
             )
-            result = ingester.ingest(db.session, email_map, chathpe_creds=chathpe_creds)
+            result = ingester.ingest(db.session, email_map, chathpe_creds=chathpe_creds, workgroup_id=workgroup_id)
             print(f"[Ingestion] Bugzilla result: {result}", flush=True)
 
             with _ingest_jobs_lock:
@@ -322,20 +323,24 @@ def update_workgroup(id):
 def delete_workgroup(id):
     wg = Workgroup.query.get_or_404(id)
 
-    # Find all bugs linked to this workgroup's build version.
-    # resource_group is always set to the workgroup's release_version during
-    # ingestion, so this filter reliably finds every bug for this workgroup.
-    bugs = Bug.query.filter_by(resource_group=wg.release_version).all()
+    # Step 1 - get bug IDs belonging to this workgroup only
+    bugs = Bug.query.filter(Bug.workgroup_id == wg.id).all()
     bug_ids = [b.id for b in bugs]
 
+    # Step 2 - delete child records scoped to those bug IDs only
     if bug_ids:
         MLAnalysis.query.filter(MLAnalysis.bug_id.in_(bug_ids)).delete(synchronize_session=False)
         BugComment.query.filter(BugComment.bug_id.in_(bug_ids)).delete(synchronize_session=False)
         BugTest.query.filter(BugTest.bug_id.in_(bug_ids)).delete(synchronize_session=False)
         BugStation.query.filter(BugStation.bug_id.in_(bug_ids)).delete(synchronize_session=False)
-        Bug.query.filter(Bug.id.in_(bug_ids)).delete(synchronize_session=False)
 
-    WorkgroupAssignment.query.filter_by(workgroup_id=id).delete()
+    # Step 3 - delete the bugs themselves
+    Bug.query.filter(Bug.workgroup_id == wg.id).delete(synchronize_session=False)
+
+    # Step 4 - delete workgroup assignments
+    WorkgroupAssignment.query.filter_by(workgroup_id=wg.id).delete()
+
+    # Step 5 - delete the workgroup
     db.session.delete(wg)
     db.session.commit()
     return jsonify({"message": "Workgroup deleted"})

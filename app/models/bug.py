@@ -30,6 +30,11 @@ class Bug(db.Model):
         db.ForeignKey("Users.ID", ondelete="SET NULL")
     )
 
+    workgroup_id = db.Column(
+        db.Integer,
+        db.ForeignKey("Workgroup_Schema.ID", ondelete="SET NULL")
+    )
+
     summary = db.Column(db.String(255))
 
     station_config = db.Column(db.String(100))
@@ -52,10 +57,16 @@ class Bug(db.Model):
         db.Index('idx_priority', 'priority'),
         db.Index('idx_bug_status', 'status'),
         db.Index('idx_bug_type', 'bug_type'),
+        db.Index('idx_bug_workgroup', 'workgroup_id'),
     )
 
     engineer = db.relationship(
         "User",
+        back_populates="bugs"
+    )
+
+    workgroup = db.relationship(
+        "Workgroup",
         back_populates="bugs"
     )
 

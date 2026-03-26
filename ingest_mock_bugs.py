@@ -3,8 +3,10 @@ Ingest bugs from mock_bugs.json into the database.
 
 Usage:
     python ingest_mock_bugs.py
+    python ingest_mock_bugs.py --workgroup-id 1
 """
 
+import argparse
 import json
 import os
 import re
@@ -144,7 +146,7 @@ def get_metadata_comment(comments):
     return {}
 
 
-def ingest():
+def ingest(workgroup_id_override=None):
     app = create_app()
     with app.app_context():
         # 1. Ensure Manager exists
@@ -249,6 +251,7 @@ def ingest():
                         engineer_id=engineer.id if engineer else None,
                         bug_type=map_bug_type(source_status),
                         resource_group=workgroup.release_version, # Fix: match workgroup version
+                        workgroup_id=workgroup_id_override,  # Set workgroup FK if provided
                         summary=(row.get("Component") or "").strip() or None,
                     )
                     db.session.add(bug)
@@ -343,4 +346,12 @@ def ingest():
 
 
 if __name__ == "__main__":
-    ingest()
+    parser = argparse.ArgumentParser(description="Ingest bugs from mock_bugs.json")
+    parser.add_argument(
+        "--workgroup-id",
+        type=int,
+        default=None,
+        help="Optional workgroup ID to associate bugs with"
+    )
+    args = parser.parse_args()
+    ingest(workgroup_id_override=args.workgroup_id)
