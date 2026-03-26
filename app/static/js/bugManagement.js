@@ -861,24 +861,47 @@ function renderStationTags() {
 
 /* ── Populate Dropdowns ── */
 async function populateReserveDropdowns() {
-    // Bug IDs from loaded data
-    allBugOptions = [...allReproBugs, ...allTestBugs].map(b => ({ id: b.id, name: b.bug_name }));
+    // Bug IDs from API (Engineer's own bugs)
+    try {
+        const myBugsData = await apiFetch('/api/bugs?my_only=true');
+        if (myBugsData) {
+            allBugOptions = [...(myBugsData.repro || []), ...(myBugsData.test || [])].map(b => ({ id: b.id, name: b.bug_name }));
+        } else {
+            allBugOptions = [];
+        }
+    } catch(err) {
+        console.error("Failed to load bugs for reservation:", err);
+        allBugOptions = [];
+    }
 
     // Stations from API
-    const stationsData = await apiFetch('/api/stations');
-    allStationOptions = stationsData?.stations || [];
+    try {
+        const stationsData = await apiFetch('/api/stations');
+        allStationOptions = stationsData?.stations || [];
+    } catch(err) {
+        console.error("Failed to load stations:", err);
+        allStationOptions = [];
+    }
 
     // Resource Group
     const rgSelect = reserveDom.resourceGroup;
     if (rgSelect) {
-        const rgSet = new Set([...allReproBugs, ...allTestBugs].map(b => b.resourceGroup).filter(Boolean));
         rgSelect.innerHTML = '<option value="">Select a Resource Group...</option>';
-        rgSet.forEach(rg => {
-            const opt = document.createElement('option');
-            opt.value = rg;
-            opt.textContent = rg;
-            rgSelect.appendChild(opt);
-        });
+        try {
+            const wgData = await apiFetch('/api/engineer/workgroups');
+            if (wgData && Array.isArray(wgData)) {
+                // Ensure unique non-empty release versions
+                const rgSet = new Set(wgData.map(w => w.release_version).filter(Boolean));
+                rgSet.forEach(rg => {
+                    const opt = document.createElement('option');
+                    opt.value = rg;
+                    opt.textContent = rg;
+                    rgSelect.appendChild(opt);
+                });
+            }
+        } catch(err) {
+            console.error("Failed to load workgroups for reservation:", err);
+        }
     }
 }
 
@@ -919,20 +942,39 @@ async function handleReserveSubmit() {
         }
 
         if (!bugId) {
-            document.getElementById('errBugId')?.classList.add('visible');
+            document.getElementById('errBugId').textContent = 'Please enter or select a Bug ID';
+            document.getElementById('errBugId').classList.add('visible');
             document.getElementById('bugIdCombobox')?.classList.add('input-error');
             isValid = false;
+        } else {
+            const bugExists = allBugOptions.some(b => b.id.toString() === bugId || b.name === bugId);
+            if (!bugExists) {
+                document.getElementById('errBugId').textContent = 'Invalid Bug ID. Please check and select a valid bug assigned to you.';
+                document.getElementById('errBugId').classList.add('visible');
+                document.getElementById('bugIdCombobox')?.classList.add('input-error');
+                isValid = false;
+            }
         }
         
         if (stations.length === 0) {
             if (specifyMode) {
-                document.getElementById('errStationManual')?.classList.add('visible');
+                document.getElementById('errStationManual').textContent = 'Please enter at least one station name';
+                document.getElementById('errStationManual').classList.add('visible');
                 reserveDom.stationManual?.classList.add('input-error');
             } else {
-                document.getElementById('errStation')?.classList.add('visible');
+                document.getElementById('errStation').textContent = 'Please select at least one station';
+                document.getElementById('errStation').classList.add('visible');
                 document.getElementById('stationCombobox')?.classList.add('input-error');
             }
             isValid = false;
+        } else if (specifyMode) {
+            const invalidStations = stations.filter(s => !allStationOptions.some(opt => opt.toLowerCase() === s.toLowerCase()));
+            if (invalidStations.length > 0) {
+                document.getElementById('errStationManual').textContent = `Invalid stations: ${invalidStations.join(', ')}. Use commas to separate multiple valid stations.`;
+                document.getElementById('errStationManual').classList.add('visible');
+                reserveDom.stationManual?.classList.add('input-error');
+                isValid = false;
+            }
         }
 
         if (!isValid) return;
@@ -960,6 +1002,13 @@ async function handleReserveSubmit() {
             isValid = false;
         }
 
+        const numPDs = reserveDom.numPDs?.value?.trim();
+        if (!numPDs) {
+            document.getElementById('errNumPDs')?.classList.add('visible');
+            reserveDom.numPDs?.classList.add('input-error');
+            isValid = false;
+        }
+
         if (!isValid) return;
 
         payload = {
@@ -967,29 +1016,52 @@ async function handleReserveSubmit() {
             resource_group: resourceGroup,
             number_of_nodes: parseInt(numNodes, 10),
             code_floor: reserveDom.codeFloor?.value?.trim() || null,
-            number_of_pds: reserveDom.numPDs?.value ? parseInt(reserveDom.numPDs.value, 10) : null,
+            number_of_pds: parseInt(numPDs, 10),
             rc: rcValue === 'yes',
         };
     }
 
-    console.log('[Reserve] Submitting:', payload);
+    // Remove global error if present
+    const existingGlobalErr = document.getElementById('errReserveGlobal');
+    if (existingGlobalErr) existingGlobalErr.classList.remove('visible');
 
-    const result = await apiFetch('/api/reservations', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-    });
+    try {
+        const response = await fetch('/api/reservations', {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+            body: JSON.stringify(payload),
+        });
+        
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            const errMsg = errData.error || `HTTP ${response.status} ${response.statusText}`;
+            throw new Error(errMsg);
+        }
 
-    if (result) {
+        const result = await response.json();
         showToast('Reservation submitted successfully!', 'success');
         closeReserveModal();
-    } else {
-        showToast('Failed to submit reservation. Check console for details.', 'error');
+    } catch (err) {
+        console.error("Reserve submit failed", err);
+        let globalErr = document.getElementById('errReserveGlobal');
+        if (!globalErr) {
+            globalErr = document.createElement('div');
+            globalErr.id = 'errReserveGlobal';
+            globalErr.className = 'field-error';
+            globalErr.style.textAlign = 'center';
+            globalErr.style.marginBottom = '10px';
+            globalErr.style.marginTop = '10px';
+            document.querySelector('.modal-footer').parentNode.insertBefore(globalErr, document.querySelector('.modal-footer'));
+        }
+        globalErr.textContent = err.message || 'Failed to submit reservation.';
+        globalErr.classList.add('visible');
     }
 }
 
-/* ── Show Reserve Button (Manager only) ── */
-function showReserveButtonIfManager() {
-    if (currentUser?.role === 'Manager') {
+/* ── Show Reserve Button (Engineer only) ── */
+function showReserveButtonIfEngineer() {
+    if (currentUser?.role === 'Engineer') {
         const btn = document.getElementById('btnReserveStation');
         if (btn) btn.style.display = '';
     }
@@ -1061,9 +1133,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('reserveBtnSubmit')?.addEventListener('click', handleReserveSubmit);
 });
 
-// Patch loadCurrentUser to show Reserve button for managers
+// Patch loadCurrentUser to show Reserve button for engineers
 const _originalLoadCurrentUser = loadCurrentUser;
 loadCurrentUser = async function() {
     await _originalLoadCurrentUser();
-    showReserveButtonIfManager();
+    showReserveButtonIfEngineer();
 };

@@ -418,8 +418,8 @@ def create_reservation():
     role = get_current_role()
     if not user_id:
         return jsonify({"error": "Not logged in"}), 401
-    if role != "Manager":
-        return jsonify({"error": "Only managers can reserve stations"}), 403
+    if role != "Engineer":
+        return jsonify({"error": "Only engineers can reserve stations"}), 403
 
     data = request.json
     print(f"[Reservation] Received: {data}", flush=True)
