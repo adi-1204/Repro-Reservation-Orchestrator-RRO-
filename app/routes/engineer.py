@@ -143,6 +143,14 @@ def engineer_bug_management():
         return redirect(url_for("auth.login"))
     return render_template("engineerBugManagement.html", auth_token=get_current_auth_token())
 
+@engineer.route("/run", methods=["GET"])
+def run_page():
+    if not get_current_user_id():
+        return redirect(url_for("auth.login"))
+    if get_current_role() != "Engineer":
+        return redirect(url_for("auth.login"))
+    return render_template("run.html", auth_token=get_current_auth_token())
+
 
 @engineer.route("/engineer_logout")
 def logout():

@@ -8,6 +8,7 @@ from app.routes.auth import auth
 from app.routes.managerDashboard import manager
 from app.routes.engineer import engineer
 from app.routes.bugDashboard import bug
+from app.routes.run_route import run_bp
 
 _RETRY_INTERVAL_SECS = 30 * 60   # 30 minutes
 
@@ -57,6 +58,7 @@ def create_app():
     flask_app.register_blueprint(manager)
     flask_app.register_blueprint(engineer)
     flask_app.register_blueprint(bug)
+    flask_app.register_blueprint(run_bp)
 
     # Start background ML analysis retry scheduler (30-min interval)
     _start_analysis_retry_scheduler(flask_app)

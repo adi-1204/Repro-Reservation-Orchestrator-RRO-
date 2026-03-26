@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RRO — Run</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Reuse the existing bugManagement.css for shared styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bugManagement.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/run.css') }}">
+</head>
+
+<body>
+    <!-- ───── NAVBAR ───── -->
+    <nav class="navbar" id="navbar">
+        <div class="navbar-left">
+            <div class="navbar-logo">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <rect width="28" height="28" rx="6" fill="#7c3aed" />
+                    <path d="M7 9h14M7 14h14M7 19h10" stroke="#fff" stroke-width="2" stroke-linecap="round" />
+                </svg>
+            </div>
+            <div class="navbar-brand">
+                <span class="brand-name">RRO</span>
+                <span class="brand-tagline">Repro &amp; Reservation Orchestrator</span>
+            </div>
+            <div class="navbar-links">
+                <a href="{{ url_for('engineer.engineer_dashboard', auth_token=auth_token) }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                        <path d="M2.5 6.5L8 2L13.5 6.5V13.5C13.5 13.7652 13.3946 14.0196 13.2071 14.2071C13.0196 14.3946 12.7652 14.5 12.5 14.5H3.5C3.23478 14.5 2.98043 14.3946 2.79289 14.2071C2.60536 14.0196 2.5 13.7652 2.5 13.5V6.5Z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M6 14.5V8.5H10V14.5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="{{ url_for('engineer.engineer_bug_management', auth_token=auth_token) }}" class="nav-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m8 2 1.88 1.88" /><path d="M14.12 3.88 16 2" />
+                        <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1" />
+                        <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6" />
+                        <path d="M12 20v-9" /><path d="M6.53 9C4.6 8.8 3 7.1 3 5" />
+                        <path d="M6 13H2" /><path d="M3 21c0-2.1 1.7-3.9 3.8-4" />
+                        <path d="M20.97 5c0 2.1-1.6 3.8-3.5 4" /><path d="M22 13h-4" />
+                        <path d="M17.2 17c2.1.1 3.8 1.9 3.8 4" />
+                    </svg>
+                    Bugs
+                </a>
+                <a href="{{ url_for('engineer.run_page', auth_token=auth_token) }}" class="nav-link active">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5,2 14,8 5,14" fill="currentColor" stroke="none"/>
+                    </svg>
+                    Run
+                </a>
+            </div>
+        </div>
+        <div class="navbar-right" id="profileDropdownTrigger">
+            <div class="user-avatar loading-pulse" id="userAvatar"></div>
+            <div class="user-info">
+                <span class="user-name loading-text" id="userName"></span>
+                <span class="user-role-badge" id="userRoleBadge"></span>
+            </div>
+            <svg class="chevron-down" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M4 6l4 4 4-4" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <div class="profile-dropdown hidden" id="profileDropdown">
+                <div class="profile-dropdown-header">
+                    <span class="profile-email" id="profileEmail"></span>
+                </div>
+                <button class="profile-dropdown-item profile-dropdown-item--red" id="btnLogout" type="button">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M6 14H3a2 2 0 01-2-2V4a2 2 0 012-2h3M11 12l4-4-4-4M15 8H6" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ───── MAIN CONTENT ───── -->
+    <main class="dashboard">
+        <section class="page-header">
+            <h1 class="page-title">Run</h1>
+            <p class="page-subtitle">Configure and execute bug reproduction test runs</p>
+        </section>
+
+        <!-- ── SECTION 1: Run Mode ── -->
+        <div class="run-card" id="section-run-mode">
+            <div class="run-card-header">
+                <h2 class="run-card-title">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="9" cy="9" r="7"/><path d="M9 6v3l2 2"/>
+                    </svg>
+                    Run Mode
+                </h2>
+                <p class="run-card-subtitle">Choose how you want to run the tests</p>
+            </div>
+            <div class="run-radio-group">
+                <label class="run-radio-card" id="label-run-tests">
+                    <input type="radio" name="runMode" id="radio-run-tests" value="run_tests" checked />
+                    <span class="run-radio-dot"></span>
+                    <div class="run-radio-content">
+                        <span class="run-radio-title">Run Tests</span>
+                        <span class="run-radio-desc">Execute existing tests for a bug</span>
+                    </div>
+                </label>
+                <label class="run-radio-card" id="label-config-execute">
+                    <input type="radio" name="runMode" id="radio-config-execute" value="config_and_execute" />
+                    <span class="run-radio-dot"></span>
+                    <div class="run-radio-content">
+                        <span class="run-radio-title">Config and Execute Test</span>
+                        <span class="run-radio-desc">Configure settings before running</span>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <!-- ── SECTION 2: Bug & Test Selection ── -->
+        <div class="run-card" id="section-bug-test">
+            <div class="run-card-header">
+                <h2 class="run-card-title">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="9" cy="9" r="7"/>
+                        <path d="M9 5V9M9 12v.5" stroke-width="2"/>
+                    </svg>
+                    Bug &amp; Test Selection
+                </h2>
+                <p class="run-card-subtitle">Select the bug and tests you want to run</p>
+            </div>
+
+            <div class="run-two-col">
+                <!-- Bug to Repro -->
+                <div class="run-field-group">
+                    <label class="run-field-label" for="bugReproInput">
+                        Bug to Repro <span class="run-required">*</span>
+                    </label>
+                    <div class="run-combobox" id="bugReproCombobox">
+                        <div class="run-input-wrap">
+                            <svg class="run-input-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <circle cx="6" cy="6" r="4" stroke="#94a3b8" stroke-width="1.3"/>
+                                <path d="M9.5 9.5L13 13" stroke="#94a3b8" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <input type="text" id="bugReproInput" class="run-input" placeholder="Type a Bug ID..." autocomplete="off" />
+                        </div>
+                        <div class="run-dropdown hidden" id="bugReproDropdown"></div>
+                    </div>
+                    <span class="run-field-error hidden" id="errBugRepro">Please select a bug first</span>
+                </div>
+
+                <!-- Choose Test to Run -->
+                <div class="run-field-group">
+                    <label class="run-field-label">
+                        Choose Test to Run <span class="run-required">*</span>
+                    </label>
+                    <div class="run-combobox" id="testRunCombobox">
+                        <div class="run-selected-tags" id="selectedTestTags"></div>
+                        <div class="run-input-wrap">
+                            <svg class="run-input-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <circle cx="6" cy="6" r="4" stroke="#94a3b8" stroke-width="1.3"/>
+                                <path d="M9.5 9.5L13 13" stroke="#94a3b8" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            <input type="text" id="testRunInput" class="run-input" placeholder="Search or add a test..." autocomplete="off" />
+                        </div>
+                        <div class="run-dropdown hidden" id="testRunDropdown"></div>
+                    </div>
+                    <span class="run-field-error hidden" id="errTestRun">Please select at least one test</span>
+                    <span class="run-field-error hidden" id="errTestDuplicate">This test name already exists in the system</span>
+                    <span class="run-field-error hidden" id="errNoBug">Please choose a Bug to Repro first</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── SECTION 3: Run Options Slider ── -->
+        <div class="run-card" id="section-run-options">
+            <div class="run-card-header">
+                <h2 class="run-card-title">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 6h12M3 12h12M6 3v12M12 3v12" opacity="0.4"/>
+                        <rect x="2" y="2" width="14" height="14" rx="3"/>
+                    </svg>
+                    Run Options
+                </h2>
+                <p class="run-card-subtitle">Choose run type to reveal configuration</p>
+            </div>
+            <div class="run-slider-toggle">
+                <div class="run-slider-track" id="runSliderTrack"></div>
+                <button class="run-slider-btn active" id="btnQuickRun" type="button">Quick Run</button>
+                <button class="run-slider-btn" id="btnComprehensive" type="button">Comprehensive Options</button>
+            </div>
+            <p class="run-slider-hint" id="sliderHint">Select an option above to configure your run</p>
+        </div>
+
+        <!-- ── SECTION 4A: Quick Run Panel ── -->
+        <div class="run-card run-panel hidden" id="panelQuickRun">
+            <div class="run-card-header">
+                <h2 class="run-card-title">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="4,2 16,9 4,16" fill="#7c3aed" stroke="none"/>
+                    </svg>
+                    Quick Run
+                </h2>
+            </div>
+            <div class="run-two-col">
+                <div class="run-field-group">
+                    <label class="run-field-label" for="qrWorkflow">Workflow</label>
+                    <input type="text" id="qrWorkflow" class="run-input run-input-full" placeholder="e.g. smoke, regression" />
+                </div>
+                <div class="run-field-group">
+                    <label class="run-field-label" for="qrRunCount">Run Count <span class="run-required">*</span></label>
+                    <input type="text" id="qrRunCount" class="run-input run-input-full" placeholder="e.g. 3" inputmode="numeric" pattern="[0-9]*" />
+                    <span class="run-field-error hidden" id="errQrRunCount">Please enter a positive integer</span>
+                </div>
+            </div>
+            <div class="run-submit-row">
+                <button class="run-btn-submit" id="btnQuickRunSubmit" type="button">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <polygon points="3,2 14,8 3,14" fill="#fff"/>
+                    </svg>
+                    Run
+                </button>
+            </div>
+        </div>
+
+        <!-- ── SECTION 4B: Comprehensive Options Panel ── -->
+        <div class="run-card run-panel hidden" id="panelComprehensive">
+            <div class="run-card-header">
+                <h2 class="run-card-title">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="2" width="14" height="14" rx="3"/>
+                        <path d="M6 7h6M6 10h4"/>
+                    </svg>
+                    Comprehensive Options
+                </h2>
+            </div>
+            <div class="run-two-col">
+                <div class="run-field-group">
+                    <label class="run-field-label" for="coWorkflow">Workflow</label>
+                    <input type="text" id="coWorkflow" class="run-input run-input-full" placeholder="e.g. smoke, regression" />
+                </div>
+                <div class="run-field-group">
+                    <label class="run-field-label" for="coRunCount">Run Count <span class="run-required">*</span></label>
+                    <input type="text" id="coRunCount" class="run-input run-input-full" placeholder="e.g. 3" inputmode="numeric" pattern="[0-9]*" />
+                    <span class="run-field-error hidden" id="errCoRunCount">Please enter a positive integer</span>
+                </div>
+                <div class="run-field-group">
+                    <label class="run-field-label" for="coProvisionSetup">
+                        Provision Setup
+                        <span class="run-field-hint">(items get a ★ appended)</span>
+                    </label>
+                    <div class="run-provision-wrap">
+                        <div class="run-provision-tags" id="provisionTags"></div>
+                        <input type="text" id="coProvisionSetup" class="run-input run-input-full" placeholder="Type and press Enter to add..." />
+                    </div>
+                </div>
+                <div class="run-field-group run-field-group--center">
+                    <label class="run-toggle-label">
+                        <span class="run-toggle-text">Do Checkout/Update</span>
+                        <span class="run-toggle-sub">Checkout and update code before running</span>
+                        <label class="run-toggle-switch">
+                            <input type="checkbox" id="coCheckout" />
+                            <span class="run-toggle-slider"></span>
+                        </label>
+                    </label>
+                </div>
+            </div>
+            <div class="run-submit-row">
+                <button class="run-btn-submit" id="btnComprehensiveSubmit" type="button">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <polygon points="3,2 14,8 3,14" fill="#fff"/>
+                    </svg>
+                    Run
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="{{ url_for('static', filename='js/authSession.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/run.js') }}" defer></script>
+</body>
+</html>
