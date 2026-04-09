@@ -1,13 +1,8 @@
 """
 app/routes/run.py
 -----------------
-Handles the Run page (GET) and the mock run submission endpoint (POST).
+Handles the Run page (GET) and run submission endpoints (POST).
 """
-
-import random
-import string
-import uuid
-from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 
@@ -16,6 +11,9 @@ from app.auth_utils import (
     get_current_role,
     get_current_user_id,
 )
+from app.extensions import db
+from app.models.bug import Bug
+from app.models.run_parameters import RunParameter
 
 run_bp = Blueprint("run", __name__)
 
@@ -32,117 +30,73 @@ def run_page():
     return render_template("run.html", auth_token=get_current_auth_token())
 
 
-# ── Mock submit endpoint ───────────────────────────────────────────────────────
+# ── Submit endpoint ─────────────────────────────────────────────────────────────
 
 @run_bp.route("/api/run/submit", methods=["POST"])
+@run_bp.route("/api/runs", methods=["POST"])
 def submit_run():
     """
-    Accepts the run payload from the frontend and returns a realistic-looking
-    mock result. Nothing is actually executed — this is for UI testing only.
-
-    Expected JSON body (all fields optional except bugToRepro):
-    {
-        "runMode":       "run_tests" | "config_and_execute",
-        "bugToRepro":    { "bug_code": "...", "bug_name": "..." },
-        "selectedTests": ["TestA", "TestB"],
-        "runOptionsMode":"quick" | "comprehensive",
-        "workflow":      "smoke",
-        "runCount":      3,
-        "provisionSetup": ["setup1 ★"],   // comprehensive only
-        "doCheckout":    true              // comprehensive only
-    }
+    Accepts run payload, validates it, resolves bug_code to Bug PK,
+    stores a Run_Parameters row, and returns run id.
     """
-    if not get_current_user_id():
-        return jsonify({"error": "Not logged in"}), 401
+    current_user_id = get_current_user_id()
+    if not current_user_id:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
 
     data = request.get_json(silent=True) or {}
 
-    bug       = data.get("bugToRepro") or {}
-    tests     = data.get("selectedTests") or []
-    run_count = int(data.get("runCount") or 1)
-    workflow  = data.get("workflow") or ""
-    mode      = data.get("runOptionsMode") or "quick"
-    run_mode  = data.get("runMode") or "run_tests"
+    required_fields = ["bug_id", "run_type", "run_mode"]
+    missing = [field for field in required_fields if data.get(field) in (None, "")]
+    if missing:
+        return jsonify({
+            "success": False,
+            "error": f"Missing required fields: {', '.join(missing)}"
+        }), 400
 
-    # ── Generate a fake job ID ──
-    job_id = "JOB-" + uuid.uuid4().hex[:8].upper()
+    run_type = str(data.get("run_type", "")).strip()
+    run_mode = str(data.get("run_mode", "")).strip()
+    if run_type not in {"quick", "comprehensive"}:
+        return jsonify({"success": False, "error": "Invalid run_type"}), 400
+    if run_mode not in {"run_tests", "config_and_execute"}:
+        return jsonify({"success": False, "error": "Invalid run_mode"}), 400
 
-    # ── Simulate per-test results ──
-    # Each test gets a random passed/failed/skipped status and a fake duration.
-    def _rand_duration():
-        secs = random.uniform(0.4, 8.5)
-        return f"{secs:.2f}s"
+    bug_code = str(data.get("bug_id", "")).strip()
+    bug = Bug.query.filter_by(bug_code=bug_code).first()
+    if not bug:
+        return jsonify({"success": False, "error": "Bug not found"}), 404
 
-    def _rand_status():
-        # 70% pass, 20% fail, 10% skipped — realistic for a repro run
-        r = random.random()
-        if r < 0.70:
-            return "passed"
-        elif r < 0.90:
-            return "failed"
-        return "skipped"
-
-    test_results = []
-    for name in (tests if tests else ["DefaultTest"]):
-        for run_num in range(1, run_count + 1):
-            label = name if run_count == 1 else f"{name} (run {run_num})"
-            test_results.append({
-                "name":     label,
-                "status":   _rand_status(),
-                "duration": _rand_duration(),
-            })
-
-    # ── Overall job status ──
-    if any(t["status"] == "failed" for t in test_results):
-        overall_status = "failed"
+    run_count = data.get("run_count")
+    if run_count in (None, ""):
+        run_count = None
     else:
-        overall_status = "completed"
+        try:
+            run_count = int(run_count)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "run_count must be an integer"}), 400
 
-    # ── Fake total duration ──
-    total_secs = sum(float(t["duration"][:-1]) for t in test_results)
-    total_duration = f"{total_secs:.2f}s"
+    provision_setup = data.get("provision_setup")
+    if isinstance(provision_setup, list):
+        provision_setup = ",".join(str(x).strip() for x in provision_setup if str(x).strip())
 
-    # ── Fake run log ──
-    now = datetime.utcnow()
+    do_checkout_update = bool(data.get("do_checkout_update", False))
 
-    def _ts(offset_secs):
-        return (now + timedelta(seconds=offset_secs)).strftime("%H:%M:%S")
+    run_parameter = RunParameter(
+        bug_id=bug.id,
+        run_mode=run_mode,
+        test_name=(data.get("test_name") or None),
+        run_type=run_type,
+        workflow=(data.get("workflow") or None),
+        run_count=run_count,
+        provision_setup=provision_setup,
+        do_checkout_update=do_checkout_update,
+        submitted_by=current_user_id,
+    )
 
-    logs = [
-        {"time": _ts(0),  "message": f"[{job_id}] Job queued"},
-        {"time": _ts(1),  "message": f"Loading bug {bug.get('bug_code', '???')}"},
-    ]
+    try:
+        db.session.add(run_parameter)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({"success": False, "error": "Failed to create run"}), 500
 
-    if data.get("doCheckout"):
-        logs.append({"time": _ts(2), "message": "Checking out latest code..."})
-        logs.append({"time": _ts(3), "message": "Checkout complete."})
-
-    if data.get("provisionSetup"):
-        for item in data["provisionSetup"]:
-            logs.append({"time": _ts(4), "message": f"Provision: {item}"})
-
-    if workflow:
-        logs.append({"time": _ts(5), "message": f"Workflow: {workflow}"})
-
-    logs.append({"time": _ts(6), "message": f"Scheduling {len(tests)} test(s) × {run_count} run(s)"})
-
-    offset = 7
-    for t in test_results:
-        logs.append({"time": _ts(offset),     "message": f"  START  {t['name']}"})
-        logs.append({"time": _ts(offset + 1), "message": f"  {t['status'].upper():8s} {t['name']} ({t['duration']})"})
-        offset += 2
-
-    logs.append({"time": _ts(offset), "message": f"Job finished — status: {overall_status.upper()}"})
-
-    return jsonify({
-        "job_id":         job_id,
-        "status":         overall_status,
-        "bug_code":       bug.get("bug_code", "—"),
-        "run_mode":       run_mode.replace("_", " ").title(),
-        "options_mode":   mode.replace("_", " ").title(),
-        "run_count":      run_count,
-        "workflow":       workflow,
-        "total_duration": total_duration,
-        "tests":          test_results,
-        "logs":           logs,
-    })
+    return jsonify({"success": True, "run_id": run_parameter.id}), 201

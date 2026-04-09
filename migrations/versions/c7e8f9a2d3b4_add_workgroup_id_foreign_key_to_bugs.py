@@ -17,11 +17,28 @@ depends_on = None
 
 
 def upgrade():
-    # Add workgroup_id column to Bugs table
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    existing_columns = {col['name'] for col in inspector.get_columns('Bugs')}
+    existing_fks = {fk.get('name') for fk in inspector.get_foreign_keys('Bugs')}
+    existing_indexes = {idx.get('name') for idx in inspector.get_indexes('Bugs')}
+
     with op.batch_alter_table('Bugs', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('workgroup_id', sa.Integer(), nullable=True))
-        batch_op.create_foreign_key('fk_bugs_workgroup_id', 'Workgroup_Schema', ['workgroup_id'], ['ID'], ondelete='SET NULL')
-        batch_op.create_index('idx_bug_workgroup', ['workgroup_id'], unique=False)
+        if 'workgroup_id' not in existing_columns:
+            batch_op.add_column(sa.Column('workgroup_id', sa.Integer(), nullable=True))
+
+        if 'fk_bugs_workgroup_id' not in existing_fks:
+            batch_op.create_foreign_key(
+                'fk_bugs_workgroup_id',
+                'Workgroup_Schema',
+                ['workgroup_id'],
+                ['ID'],
+                ondelete='SET NULL'
+            )
+
+        if 'idx_bug_workgroup' not in existing_indexes:
+            batch_op.create_index('idx_bug_workgroup', ['workgroup_id'], unique=False)
 
 
 def downgrade():

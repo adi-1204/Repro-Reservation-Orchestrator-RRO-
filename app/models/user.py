@@ -36,6 +36,12 @@ class User(db.Model):
         lazy=True
     )
 
+    submitted_run_parameters = db.relationship(
+        "RunParameter",
+        back_populates="submitted_by_user",
+        lazy=True
+    )
+
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name or ''}".strip()

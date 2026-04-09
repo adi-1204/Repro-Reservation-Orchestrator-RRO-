@@ -50,6 +50,8 @@ def create_app():
     migrate.init_app(flask_app, db)
     mail.init_app(flask_app)
 
+    import app.models  # Ensure all SQLAlchemy models are registered for migrations.
+
     login_manager.login_view = "auth.login_page"
 
     import app.auth_utils  # <-- important

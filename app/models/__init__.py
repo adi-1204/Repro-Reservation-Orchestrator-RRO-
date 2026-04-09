@@ -6,3 +6,4 @@ from .bug_tests import BugTest
 from .bug_stations import BugStation
 from .bug_comments import BugComment
 from .ml_analysis import MLAnalysis
+from .run_parameters import RunParameter

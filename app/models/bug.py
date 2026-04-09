@@ -94,3 +94,9 @@ class Bug(db.Model):
         uselist=False,
         cascade="all, delete-orphan"
     )
+
+    run_parameters = db.relationship(
+        "RunParameter",
+        back_populates="bug",
+        cascade="all, delete-orphan"
+    )

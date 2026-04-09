@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS ML_Analysis;
 DROP TABLE IF EXISTS Bug_Comments;
 DROP TABLE IF EXISTS Bug_stations;
 DROP TABLE IF EXISTS Bug_Tests;
+DROP TABLE IF EXISTS Run_Parameters;
 DROP TABLE IF EXISTS Bugs;
 DROP TABLE IF EXISTS workgroup_assignments;
 DROP TABLE IF EXISTS Workgroup_Schema;
@@ -97,6 +98,28 @@ CREATE TABLE Bug_Tests (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
+-- Run_Parameters Table
+-- ============================================
+CREATE TABLE Run_Parameters (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    bug_id INT NOT NULL,
+    run_mode ENUM('run_tests', 'config_and_execute') NOT NULL,
+    test_name VARCHAR(200),
+    run_type ENUM('quick', 'comprehensive') NOT NULL,
+    workflow VARCHAR(200),
+    run_count INT,
+    provision_setup TEXT,
+    do_checkout_update BOOLEAN NOT NULL DEFAULT FALSE,
+    submitted_by INT,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status ENUM('queued', 'running', 'completed', 'failed') NOT NULL DEFAULT 'queued',
+    FOREIGN KEY (bug_id) REFERENCES Bugs(id) ON DELETE CASCADE,
+    FOREIGN KEY (submitted_by) REFERENCES Users(ID) ON DELETE SET NULL,
+    INDEX idx_run_parameters_bug (bug_id),
+    INDEX idx_run_parameters_submitted_by (submitted_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
 -- Bug_stations Table
 -- ============================================
 CREATE TABLE Bug_stations (
@@ -166,6 +189,7 @@ DESC Workgroup_Schema;
 DESC workgroup_assignments;
 DESC Bugs;
 DESC Bug_Tests;
+DESC Run_Parameters;
 DESC Bug_stations;
 DESC Bug_Comments;
 DESC ML_Analysis;

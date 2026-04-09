@@ -285,15 +285,64 @@ function initSliderToggle() {
     const track = document.getElementById('runSliderTrack');
     const btnQuick = document.getElementById('btnQuickRun');
     const btnComp = document.getElementById('btnComprehensive');
-    const panelQuick = document.getElementById('panelQuickRun');
-    const panelComp = document.getElementById('panelComprehensive');
+    const panelQuick = document.getElementById('quick-run-fields');
+    const panelComp = document.getElementById('comprehensive-fields');
 
     function moveTrackTo(btn) {
         track.style.left  = btn.offsetLeft + 'px';
         track.style.width = btn.offsetWidth + 'px';
     }
 
+    function clearTabContainer(containerEl) {
+        if (!containerEl) return;
+
+        containerEl.querySelectorAll('input, select, textarea').forEach(el => {
+            const tag = el.tagName.toLowerCase();
+            const inputType = (el.type || '').toLowerCase();
+
+            if (tag === 'select') {
+                el.selectedIndex = 0;
+                return;
+            }
+
+            if (tag === 'input' && (inputType === 'checkbox' || inputType === 'radio')) {
+                el.checked = false;
+                return;
+            }
+
+            // Covers text, number, and any free-text field variants.
+            if (tag === 'textarea' || tag === 'input') {
+                el.value = '';
+            }
+        });
+    }
+
+    function clearLeavingTab(mode) {
+        if (mode === 'quick') {
+            clearTabContainer(panelQuick);
+            state.qrWorkflow = '';
+            state.qrRunCount = '';
+            document.getElementById('errQrRunCount').classList.add('hidden');
+            return;
+        }
+
+        clearTabContainer(panelComp);
+        state.coWorkflow = '';
+        state.coRunCount = '';
+        state.coCheckout = false;
+        state.coProvisionSetup = [];
+        document.getElementById('errCoRunCount').classList.add('hidden');
+        document.getElementById('errProvisionFormat').classList.add('hidden');
+        renderProvisionTags();
+    }
+
     function setMode(mode) {
+        const leavingMode = state.runOptionsMode;
+
+        if (leavingMode && leavingMode !== mode) {
+            clearLeavingTab(leavingMode);
+        }
+
         state.runOptionsMode = mode;
         if (mode === 'quick') {
             btnQuick.classList.add('active');
@@ -315,6 +364,65 @@ function initSliderToggle() {
     btnComp.addEventListener('click', () => setMode('comprehensive'));
 }
 
+function getActiveRunContainer() {
+    if (state.runOptionsMode === 'comprehensive') {
+        return document.getElementById('comprehensive-fields');
+    }
+    return document.getElementById('quick-run-fields');
+}
+
+function getActiveRunFields() {
+    const isQuick = state.runOptionsMode === 'quick';
+    const container = getActiveRunContainer();
+
+    const workflowInput = container.querySelector('input[id$="Workflow"]');
+    const runCountInput = container.querySelector('input[id$="RunCount"]');
+
+    const runCount = parseInt((runCountInput?.value || '').trim(), 10);
+    if (!runCountInput || !runCountInput.value.trim() || Number.isNaN(runCount) || runCount <= 0) {
+        document.getElementById(isQuick ? 'errQrRunCount' : 'errCoRunCount').classList.remove('hidden');
+        return null;
+    }
+
+    document.getElementById(isQuick ? 'errQrRunCount' : 'errCoRunCount').classList.add('hidden');
+
+    const provisionSetup = isQuick ? '' : state.coProvisionSetup.map(v => v.replace(/\s*★\s*$/, '')).join(',');
+    const doCheckoutUpdate = isQuick ? false : Boolean(container.querySelector('#coCheckout')?.checked);
+
+    return {
+        run_type: isQuick ? 'quick' : 'comprehensive',
+        workflow: workflowInput?.value?.trim() || '',
+        run_count: runCount,
+        provision_setup: provisionSetup,
+        do_checkout_update: doCheckoutUpdate,
+    };
+}
+
+function buildRunPayloadFromActiveTab() {
+    const activeFields = getActiveRunFields();
+    if (!activeFields) return null;
+
+    return {
+        bug_id: String(state.bugToRepro.bug_code || '').trim(),
+        run_mode: state.runMode,
+        test_name: state.selectedTests[0] || '',
+        run_type: activeFields.run_type,
+        workflow: activeFields.workflow,
+        run_count: activeFields.run_count,
+        provision_setup: activeFields.provision_setup,
+        do_checkout_update: activeFields.do_checkout_update,
+    };
+}
+
+async function handleRunSubmit() {
+    if (!validateBugAndTests()) return;
+
+    const payload = buildRunPayloadFromActiveTab();
+    if (!payload) return;
+
+    await submitRun(payload);
+}
+
 // ═══════════════════════════════════════════
 // SECTION 4A — Quick Run
 // ═══════════════════════════════════════════
@@ -330,25 +438,7 @@ function initQuickRun() {
         document.getElementById('errQrRunCount').classList.add('hidden');
     });
 
-    document.getElementById('btnQuickRunSubmit').addEventListener('click', async () => {
-        const count = parseInt(state.qrRunCount, 10);
-        if (!state.qrRunCount || isNaN(count) || count <= 0) {
-            document.getElementById('errQrRunCount').classList.remove('hidden');
-            return;
-        }
-        document.getElementById('errQrRunCount').classList.add('hidden');
-        if (!validateBugAndTests()) return;
-
-        const payload = {
-            runMode: state.runMode,
-            bugToRepro: state.bugToRepro,
-            selectedTests: state.selectedTests,
-            runOptionsMode: 'quick',
-            workflow: state.qrWorkflow,
-            runCount: count,
-        };
-        await submitRun(payload);
-    });
+    document.getElementById('btnQuickRunSubmit').addEventListener('click', handleRunSubmit);
 }
 
 // ═══════════════════════════════════════════
@@ -413,27 +503,7 @@ function initComprehensive() {
         state.coCheckout = e.target.checked;
     });
 
-    document.getElementById('btnComprehensiveSubmit').addEventListener('click', async () => {
-        const count = parseInt(state.coRunCount, 10);
-        if (!state.coRunCount || isNaN(count) || count <= 0) {
-            document.getElementById('errCoRunCount').classList.remove('hidden');
-            return;
-        }
-        document.getElementById('errCoRunCount').classList.add('hidden');
-        if (!validateBugAndTests()) return;
-
-        const payload = {
-            runMode: state.runMode,
-            bugToRepro: state.bugToRepro,
-            selectedTests: state.selectedTests,
-            runOptionsMode: 'comprehensive',
-            workflow: state.coWorkflow,
-            runCount: count,
-            provisionSetup: state.coProvisionSetup,   // already has ★ appended
-            doCheckout: state.coCheckout,
-        };
-        await submitRun(payload);
-    });
+    document.getElementById('btnComprehensiveSubmit').addEventListener('click', handleRunSubmit);
 }
 
 function renderProvisionTags() {
@@ -472,21 +542,28 @@ function validateBugAndTests() {
 // Submit run
 // ═══════════════════════════════════════════
 async function submitRun(payload) {
-    console.log('[Run] Submitting payload:', JSON.stringify(payload, null, 2));
+    try {
+        const response = await fetch(`${API_BASE}/api/runs`, {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+            body: JSON.stringify(payload),
+        });
 
-    const data = await apiFetch('/api/run/submit', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-    });
+        const data = await response.json().catch(() => ({}));
 
-    if (!data) {
-        showToast('Could not reach the server. Check console.', 'error');
-        return;
+        if (!response.ok) {
+            const msg = data.error || data.message || `Run submit failed (HTTP ${response.status})`;
+            showToast(msg, 'error');
+            return;
+        }
+
+        resetPage();
+        showToast(data.message || 'Run submitted successfully!', 'success');
+    } catch (err) {
+        console.warn('[Run] submit failed', err);
+        showToast('Could not reach the server. Please try again.', 'error');
     }
-
-    console.log('[Run] Server response:', JSON.stringify(data, null, 2));
-    resetPage();
-    showToast('Run submitted successfully!');
 }
 
 // ═══════════════════════════════════════════

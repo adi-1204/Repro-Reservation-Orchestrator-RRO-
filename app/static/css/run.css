@@ -348,17 +348,18 @@
     font-size: 13px;
     font-weight: 600;
     color: #64748b;
-    background: transparent;
+    background: #e2e8f0;
     border: none;
     border-radius: 8px;
     cursor: pointer;
-    transition: color 0.2s;
+    transition: color 0.2s, background 0.2s;
     font-family: inherit;
     white-space: nowrap;
 }
 
 .run-slider-btn.active {
     color: #7c3aed;
+    background: transparent;
 }
 
 /* ── Panel animation ── */
