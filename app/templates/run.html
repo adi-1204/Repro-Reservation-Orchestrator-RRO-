@@ -8,7 +8,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <!-- Reuse the existing bugManagement.css for shared styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bugManagement.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/run.css') }}">
 </head>
@@ -171,108 +170,100 @@
             </div>
         </div>
 
-        <!-- ── SECTION 3: Run Options Slider ── -->
-        <div class="run-card" id="section-run-options">
-            <div class="run-card-header">
-                <h2 class="run-card-title">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M3 6h12M3 12h12M6 3v12M12 3v12" opacity="0.4"/>
-                        <rect x="2" y="2" width="14" height="14" rx="3"/>
-                    </svg>
-                    Run Options
-                </h2>
-                <p class="run-card-subtitle">Choose run type to reveal configuration</p>
-            </div>
-            <div class="run-slider-toggle">
-                <div class="run-slider-track" id="runSliderTrack"></div>
-                <button class="run-slider-btn active" id="btnQuickRun" type="button">Quick Run</button>
-                <button class="run-slider-btn" id="btnComprehensive" type="button">Comprehensive Options</button>
-            </div>
-            <p class="run-slider-hint" id="sliderHint">Select an option above to configure your run</p>
-        </div>
+        <!-- ── SECTION 3 (COMBINED): Run Options — slider is header, panels inside ── -->
+        <div class="run-card" id="section-run-options-combined">
 
-        <!-- ── SECTION 4A: Quick Run Panel ── -->
-        <div class="run-card run-panel hidden" id="panelQuickRun">
-            <div class="run-card-header">
-                <h2 class="run-card-title">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="4,2 16,9 4,16" fill="#7c3aed" stroke="none"/>
-                    </svg>
-                    Quick Run
-                </h2>
-            </div>
-            <div class="run-two-col">
-                <div class="run-field-group">
-                    <label class="run-field-label" for="qrWorkflow">Workflow</label>
-                    <input type="text" id="qrWorkflow" class="run-input run-input-full" placeholder="e.g. smoke, regression" />
+            <!-- Card header row: title on left, slider on right -->
+            <div class="run-options-header">
+                <div>
+                    <h2 class="run-card-title">
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="2" width="14" height="14" rx="3"/>
+                            <path d="M6 7h6M6 10h4"/>
+                        </svg>
+                        Run Options
+                    </h2>
+                    <p class="run-card-subtitle">Click an option to configure your run</p>
                 </div>
-                <div class="run-field-group">
-                    <label class="run-field-label" for="qrRunCount">Run Count <span class="run-required">*</span></label>
-                    <input type="text" id="qrRunCount" class="run-input run-input-full" placeholder="e.g. 3" inputmode="numeric" pattern="[0-9]*" />
-                    <span class="run-field-error hidden" id="errQrRunCount">Please enter a positive integer</span>
-                </div>
-            </div>
-            <div class="run-submit-row">
-                <button class="run-btn-submit" id="btnQuickRunSubmit" type="button">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <polygon points="3,2 14,8 3,14" fill="#fff"/>
-                    </svg>
-                    Run
-                </button>
-            </div>
-        </div>
 
-        <!-- ── SECTION 4B: Comprehensive Options Panel ── -->
-        <div class="run-card run-panel hidden" id="panelComprehensive">
-            <div class="run-card-header">
-                <h2 class="run-card-title">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="2" y="2" width="14" height="14" rx="3"/>
-                        <path d="M6 7h6M6 10h4"/>
-                    </svg>
-                    Comprehensive Options
-                </h2>
+                <!-- Slider toggle (attached to the card header) -->
+                <div class="run-slider-toggle" id="runSliderToggle">
+                    <div class="run-slider-track" id="runSliderTrack"></div>
+                    <button class="run-slider-btn active" id="btnQuickRun" type="button">Quick Run</button>
+                    <button class="run-slider-btn" id="btnComprehensive" type="button">Comprehensive Options</button>
+                </div>
             </div>
-            <div class="run-two-col">
-                <div class="run-field-group">
-                    <label class="run-field-label" for="coWorkflow">Workflow</label>
-                    <input type="text" id="coWorkflow" class="run-input run-input-full" placeholder="e.g. smoke, regression" />
-                </div>
-                <div class="run-field-group">
-                    <label class="run-field-label" for="coRunCount">Run Count <span class="run-required">*</span></label>
-                    <input type="text" id="coRunCount" class="run-input run-input-full" placeholder="e.g. 3" inputmode="numeric" pattern="[0-9]*" />
-                    <span class="run-field-error hidden" id="errCoRunCount">Please enter a positive integer</span>
-                </div>
-                <div class="run-field-group">
-                    <label class="run-field-label" for="coProvisionSetup">
-                        Provision Setup
-                        <span class="run-field-hint">(items get a ★ appended)</span>
-                    </label>
-                    <div class="run-provision-wrap">
-                        <div class="run-provision-tags" id="provisionTags"></div>
-                        <input type="text" id="coProvisionSetup" class="run-input run-input-full" placeholder="Type and press Enter to add..." />
+
+            <!-- Divider between header and panel content -->
+            <div class="run-options-divider"></div>
+
+            <!-- ── Quick Run Panel ── -->
+            <div class="run-panel" id="panelQuickRun">
+                <div class="run-two-col">
+                    <div class="run-field-group">
+                        <label class="run-field-label" for="qrWorkflow">Workflow</label>
+                        <input type="text" id="qrWorkflow" class="run-input run-input-full" placeholder="e.g. smoke, regression" />
+                    </div>
+                    <div class="run-field-group">
+                        <label class="run-field-label" for="qrRunCount">Run Count <span class="run-required">*</span></label>
+                        <input type="text" id="qrRunCount" class="run-input run-input-full" placeholder="e.g. 3" inputmode="numeric" pattern="[0-9]*" />
+                        <span class="run-field-error hidden" id="errQrRunCount">Please enter a positive integer</span>
                     </div>
                 </div>
-                <div class="run-field-group run-field-group--center">
-                    <label class="run-toggle-label">
-                        <span class="run-toggle-text">Do Checkout/Update</span>
-                        <span class="run-toggle-sub">Checkout and update code before running</span>
-                        <label class="run-toggle-switch">
-                            <input type="checkbox" id="coCheckout" />
-                            <span class="run-toggle-slider"></span>
-                        </label>
-                    </label>
+                <div class="run-submit-row">
+                    <button class="run-btn-submit" id="btnQuickRunSubmit" type="button">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <polygon points="3,2 14,8 3,14" fill="#fff"/>
+                        </svg>
+                        Run
+                    </button>
                 </div>
             </div>
-            <div class="run-submit-row">
-                <button class="run-btn-submit" id="btnComprehensiveSubmit" type="button">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <polygon points="3,2 14,8 3,14" fill="#fff"/>
-                    </svg>
-                    Run
-                </button>
+
+            <!-- ── Comprehensive Options Panel ── -->
+            <div class="run-panel hidden" id="panelComprehensive">
+                <div class="run-two-col">
+                    <div class="run-field-group">
+                        <label class="run-field-label" for="coWorkflow">Workflow</label>
+                        <input type="text" id="coWorkflow" class="run-input run-input-full" placeholder="e.g. smoke, regression" />
+                    </div>
+                    <div class="run-field-group">
+                        <label class="run-field-label" for="coRunCount">Run Count <span class="run-required">*</span></label>
+                        <input type="text" id="coRunCount" class="run-input run-input-full" placeholder="e.g. 3" inputmode="numeric" pattern="[0-9]*" />
+                        <span class="run-field-error hidden" id="errCoRunCount">Please enter a positive integer</span>
+                    </div>
+                    <div class="run-field-group">
+                        <label class="run-field-label" for="coProvisionSetup">
+                            Provision Setup
+                        </label>
+                        <div class="run-provision-wrap">
+                            <div class="run-provision-tags" id="provisionTags"></div>
+                            <input type="text" id="coProvisionSetup" class="run-input run-input-full" placeholder="Type and press Enter to add..." />
+                            <span class="run-field-error hidden" id="errProvisionFormat">Item must end with .* (e.g. config.*)</span>
+                        </div>
+                    </div>
+                    <div class="run-field-group run-field-group--center">
+                        <label class="run-toggle-label">
+                            <span class="run-toggle-text">Do Checkout/Update</span>
+                            <label class="run-toggle-switch">
+                                <input type="checkbox" id="coCheckout" />
+                                <span class="run-toggle-slider"></span>
+                            </label>
+                        </label>
+                    </div>
+                </div>
+                <div class="run-submit-row">
+                    <button class="run-btn-submit" id="btnComprehensiveSubmit" type="button">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <polygon points="3,2 14,8 3,14" fill="#fff"/>
+                        </svg>
+                        Run
+                    </button>
+                </div>
             </div>
+
         </div>
+        <!-- end combined card -->
 
     </main>
 

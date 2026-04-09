@@ -7,28 +7,22 @@ const API_BASE = '';
 
 // ── State variables (all form values stored here) ──
 const state = {
-    runMode: 'run_tests',          // 'run_tests' or 'config_and_execute'
-    bugToRepro: null,              // { id, bug_code, bug_name } of selected bug
-    selectedTests: [],             // array of test name strings chosen by user
-    runOptionsMode: null,          // 'quick' or 'comprehensive'
-    // Quick Run
+    runMode: 'run_tests',
+    bugToRepro: null,
+    selectedTests: [],
+    runOptionsMode: null,
     qrWorkflow: '',
     qrRunCount: '',
-    // Comprehensive
     coWorkflow: '',
     coRunCount: '',
-    coProvisionSetup: [],          // array of strings (each has ★ appended on display)
+    coProvisionSetup: [],   // stores raw values (without ★)
     coCheckout: false,
 };
 
-// All test names in the system (for duplicate check when adding custom test)
 let allSystemTestNames = [];
-// Tests belonging to the currently selected bug
 let bugTests = [];
-// All bugs in the system (for the Bug to Repro combobox)
 let allBugs = [];
 
-// ── Auth helpers ──
 function getAuthHeaders(h = {}) {
     return window.RROAuth ? window.RROAuth.getAuthHeaders(h) : h;
 }
@@ -48,14 +42,12 @@ async function apiFetch(path, options = {}) {
     }
 }
 
-// ── Escape HTML to prevent XSS ──
 function esc(str) {
     const d = document.createElement('div');
     d.textContent = str ?? '';
     return d.innerHTML;
 }
 
-// ── Toast ──
 function showToast(msg, type = 'success') {
     const t = document.getElementById('toast');
     if (!t) return;
@@ -71,7 +63,6 @@ function initRunMode() {
     document.querySelectorAll('input[name="runMode"]').forEach(radio => {
         radio.addEventListener('change', () => {
             state.runMode = radio.value;
-            console.log('[State] runMode =', state.runMode);
         });
     });
 }
@@ -108,12 +99,9 @@ function selectBug(item) {
     document.getElementById('bugReproInput').value = item.dataset.bugCode;
     document.getElementById('bugReproDropdown').classList.add('hidden');
     document.getElementById('errBugRepro').classList.add('hidden');
-    console.log('[State] bugToRepro =', state.bugToRepro);
 
-    // Reset selected tests since bug changed
     state.selectedTests = [];
     renderSelectedTags();
-    // Load tests for this bug
     loadBugTests(item.dataset.bugId);
 }
 
@@ -123,7 +111,6 @@ async function loadBugTests(dbId) {
     if (data && Array.isArray(data.tests)) {
         bugTests = data.tests.map(t => t.test_name).filter(Boolean);
     }
-    console.log('[State] bugTests for bug', dbId, '=', bugTests);
 }
 
 function initBugReproCombobox() {
@@ -135,7 +122,6 @@ function initBugReproCombobox() {
         clearTimeout(bugDebounce);
         if (!q) { dd.classList.add('hidden'); return; }
         bugDebounce = setTimeout(() => {
-            // Filter from already loaded allBugs
             const lower = q.toLowerCase();
             const filtered = allBugs.filter(b =>
                 b.id.toLowerCase().includes(lower) ||
@@ -150,7 +136,6 @@ function initBugReproCombobox() {
         if (q) input.dispatchEvent(new Event('input'));
     });
 
-    // Clear selection if user clears the field
     input.addEventListener('change', () => {
         if (!input.value.trim()) {
             state.bugToRepro = null;
@@ -160,7 +145,6 @@ function initBugReproCombobox() {
         }
     });
 
-    // Close dropdown on outside click
     document.addEventListener('click', e => {
         if (!document.getElementById('bugReproCombobox').contains(e.target)) {
             dd.classList.add('hidden');
@@ -172,12 +156,10 @@ async function loadAllBugs() {
     const data = await apiFetch('/api/bugs');
     if (!data) return;
     allBugs = [...(data.repro || []), ...(data.test || [])];
-    // Collect all test names for duplicate validation
     allSystemTestNames = [];
     allBugs.forEach(b => {
         if (Array.isArray(b.tests)) allSystemTestNames.push(...b.tests);
     });
-    console.log('[State] allBugs loaded:', allBugs.length, 'bugs');
 }
 
 // ═══════════════════════════════════════════
@@ -198,7 +180,6 @@ function renderSelectedTags() {
         btn.addEventListener('click', () => {
             state.selectedTests = state.selectedTests.filter(x => x !== btn.dataset.test);
             renderSelectedTags();
-            console.log('[State] selectedTests =', state.selectedTests);
         });
     });
 }
@@ -216,7 +197,6 @@ function renderTestDropdown(filtered, query) {
             </div>`;
     });
 
-    // Offer "Add custom test" if query doesn't exactly match an existing test
     const exactMatch = filtered.some(n => n.toLowerCase() === query.toLowerCase());
     if (query && !exactMatch) {
         html += `
@@ -237,14 +217,12 @@ function renderTestDropdown(filtered, query) {
 }
 
 function addTest(testName, isCustom) {
-    // Validation: bug must be selected first
     if (!state.bugToRepro) {
         showError('errNoBug');
         document.getElementById('testRunDropdown').classList.add('hidden');
         return;
     }
 
-    // Duplicate check for custom additions
     if (isCustom) {
         const lower = testName.toLowerCase();
         if (allSystemTestNames.map(x => x.toLowerCase()).includes(lower)) {
@@ -256,7 +234,6 @@ function addTest(testName, isCustom) {
     if (!state.selectedTests.includes(testName)) {
         state.selectedTests.push(testName);
         renderSelectedTags();
-        console.log('[State] selectedTests =', state.selectedTests);
     }
     document.getElementById('testRunInput').value = '';
     document.getElementById('testRunDropdown').classList.add('hidden');
@@ -280,24 +257,16 @@ function initTestRunCombobox() {
     const dd = document.getElementById('testRunDropdown');
 
     input.addEventListener('focus', () => {
-        if (!state.bugToRepro) {
-            showError('errNoBug');
-            return;
-        }
+        if (!state.bugToRepro) { showError('errNoBug'); return; }
         renderTestDropdown(bugTests, input.value.trim());
     });
 
     input.addEventListener('input', () => {
-        if (!state.bugToRepro) {
-            showError('errNoBug');
-            return;
-        }
+        if (!state.bugToRepro) { showError('errNoBug'); return; }
         clearTimeout(testDebounce);
         testDebounce = setTimeout(() => {
             const q = input.value.trim().toLowerCase();
-            const filtered = q
-                ? bugTests.filter(t => t.toLowerCase().includes(q))
-                : bugTests;
+            const filtered = q ? bugTests.filter(t => t.toLowerCase().includes(q)) : bugTests;
             renderTestDropdown(filtered, input.value.trim());
         }, 150);
     });
@@ -318,11 +287,7 @@ function initSliderToggle() {
     const btnComp = document.getElementById('btnComprehensive');
     const panelQuick = document.getElementById('panelQuickRun');
     const panelComp = document.getElementById('panelComprehensive');
-    const hint = document.getElementById('sliderHint');
 
-    // Move the white pill to sit exactly under whichever button is active.
-    // We measure the button's real offsetLeft and offsetWidth so any
-    // text length ("Quick Run" vs "Comprehensive Options") works correctly.
     function moveTrackTo(btn) {
         track.style.left  = btn.offsetLeft + 'px';
         track.style.width = btn.offsetWidth + 'px';
@@ -330,8 +295,6 @@ function initSliderToggle() {
 
     function setMode(mode) {
         state.runOptionsMode = mode;
-        console.log('[State] runOptionsMode =', mode);
-
         if (mode === 'quick') {
             btnQuick.classList.add('active');
             btnComp.classList.remove('active');
@@ -345,13 +308,9 @@ function initSliderToggle() {
             panelQuick.classList.add('hidden');
             moveTrackTo(btnComp);
         }
-        hint.style.display = 'none';
     }
 
-    // Use requestAnimationFrame so the buttons are fully painted before we
-    // measure offsetWidth — measuring before first paint returns 0.
     requestAnimationFrame(() => setMode('quick'));
-
     btnQuick.addEventListener('click', () => setMode('quick'));
     btnComp.addEventListener('click', () => setMode('comprehensive'));
 }
@@ -366,21 +325,18 @@ function initQuickRun() {
 
     const rcInput = document.getElementById('qrRunCount');
     rcInput.addEventListener('input', () => {
-        // Allow only digits
         rcInput.value = rcInput.value.replace(/[^0-9]/g, '');
         state.qrRunCount = rcInput.value;
         document.getElementById('errQrRunCount').classList.add('hidden');
     });
 
     document.getElementById('btnQuickRunSubmit').addEventListener('click', async () => {
-        // Validate run count
         const count = parseInt(state.qrRunCount, 10);
         if (!state.qrRunCount || isNaN(count) || count <= 0) {
             document.getElementById('errQrRunCount').classList.remove('hidden');
             return;
         }
         document.getElementById('errQrRunCount').classList.add('hidden');
-        // Validate bug and tests
         if (!validateBugAndTests()) return;
 
         const payload = {
@@ -398,6 +354,40 @@ function initQuickRun() {
 // ═══════════════════════════════════════════
 // SECTION 4B — Comprehensive Options
 // ═══════════════════════════════════════════
+
+/**
+ * Provision setup validation (backend-style check):
+ * - The raw value entered by the user must end with '.*'
+ * - If it does → strip '.*', add '★' at the end, store and display
+ * - If it doesn't → show an error, do not add the item
+ */
+function tryAddProvision(rawVal) {
+    const val = rawVal.trim();
+    if (!val) return;
+
+    const errEl = document.getElementById('errProvisionFormat');
+
+    // Check: value must end with .*
+    if (!val.endsWith('.*')) {
+        errEl.classList.remove('hidden');
+        setTimeout(() => errEl.classList.add('hidden'), 3500);
+        return;
+    }
+
+    errEl.classList.add('hidden');
+
+    // Strip '.*' from the end, then append '★' for display
+    const base = val.slice(0, -2);          // remove the trailing .*
+    const displayVal = base + ' ★';
+
+    if (!state.coProvisionSetup.includes(displayVal)) {
+        state.coProvisionSetup.push(displayVal);
+        renderProvisionTags();
+    }
+
+    document.getElementById('coProvisionSetup').value = '';
+}
+
 function initComprehensive() {
     document.getElementById('coWorkflow').addEventListener('input', e => {
         state.coWorkflow = e.target.value;
@@ -410,25 +400,17 @@ function initComprehensive() {
         document.getElementById('errCoRunCount').classList.add('hidden');
     });
 
-    // Provision Setup — add on Enter
+    // Provision Setup — validate and add on Enter
     const provInput = document.getElementById('coProvisionSetup');
     provInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            const val = provInput.value.trim();
-            if (val && !state.coProvisionSetup.includes(val)) {
-                state.coProvisionSetup.push(val);
-                renderProvisionTags();
-                console.log('[State] coProvisionSetup =', state.coProvisionSetup);
-            }
-            provInput.value = '';
+            tryAddProvision(provInput.value);
         }
     });
 
-    // Checkout toggle
     document.getElementById('coCheckout').addEventListener('change', e => {
         state.coCheckout = e.target.checked;
-        console.log('[State] coCheckout =', state.coCheckout);
     });
 
     document.getElementById('btnComprehensiveSubmit').addEventListener('click', async () => {
@@ -438,7 +420,6 @@ function initComprehensive() {
             return;
         }
         document.getElementById('errCoRunCount').classList.add('hidden');
-        // Validate bug and tests
         if (!validateBugAndTests()) return;
 
         const payload = {
@@ -448,7 +429,7 @@ function initComprehensive() {
             runOptionsMode: 'comprehensive',
             workflow: state.coWorkflow,
             runCount: count,
-            provisionSetup: state.coProvisionSetup.map(v => v + ' ★'),
+            provisionSetup: state.coProvisionSetup,   // already has ★ appended
             doCheckout: state.coCheckout,
         };
         await submitRun(payload);
@@ -459,7 +440,7 @@ function renderProvisionTags() {
     const container = document.getElementById('provisionTags');
     container.innerHTML = state.coProvisionSetup.map(v => `
         <span class="run-provision-tag">
-            ${esc(v)} ★
+            ${esc(v)}
             <button class="run-provision-remove" data-val="${esc(v)}" type="button">×</button>
         </span>
     `).join('');
@@ -467,13 +448,12 @@ function renderProvisionTags() {
         btn.addEventListener('click', () => {
             state.coProvisionSetup = state.coProvisionSetup.filter(x => x !== btn.dataset.val);
             renderProvisionTags();
-            console.log('[State] coProvisionSetup =', state.coProvisionSetup);
         });
     });
 }
 
 // ═══════════════════════════════════════════
-// Validation helper — checks bug + tests before submit
+// Validation
 // ═══════════════════════════════════════════
 function validateBugAndTests() {
     let ok = true;
@@ -489,8 +469,7 @@ function validateBugAndTests() {
 }
 
 // ═══════════════════════════════════════════
-// Submit run — POST /api/run/submit
-// Logs the JSON payload and resets the page
+// Submit run
 // ═══════════════════════════════════════════
 async function submitRun(payload) {
     console.log('[Run] Submitting payload:', JSON.stringify(payload, null, 2));
@@ -505,23 +484,18 @@ async function submitRun(payload) {
         return;
     }
 
-    // Log what the server echoed back
     console.log('[Run] Server response:', JSON.stringify(data, null, 2));
-
-    // Reset the entire page back to its initial state
     resetPage();
     showToast('Run submitted successfully!');
 }
 
 // ═══════════════════════════════════════════
-// Reset page to initial state after submit
+// Reset page
 // ═══════════════════════════════════════════
 function resetPage() {
-    // Section 1 — run mode back to default
     state.runMode = 'run_tests';
     document.getElementById('radio-run-tests').checked = true;
 
-    // Section 2 — clear bug selection and tests
     state.bugToRepro = null;
     bugTests = [];
     state.selectedTests = [];
@@ -533,18 +507,14 @@ function resetPage() {
     document.getElementById('testRunDropdown').classList.add('hidden');
     hideAllTestErrors();
 
-    // Section 3 — reset slider back to Quick Run
-    // Re-call initSliderToggle logic by clicking the Quick Run button
     document.getElementById('btnQuickRun').click();
 
-    // Section 4A — clear Quick Run fields
     state.qrWorkflow = '';
     state.qrRunCount = '';
     document.getElementById('qrWorkflow').value = '';
     document.getElementById('qrRunCount').value = '';
     document.getElementById('errQrRunCount').classList.add('hidden');
 
-    // Section 4B — clear Comprehensive fields
     state.coWorkflow = '';
     state.coRunCount = '';
     state.coProvisionSetup = [];
@@ -556,12 +526,11 @@ function resetPage() {
     document.getElementById('errCoRunCount').classList.add('hidden');
     renderProvisionTags();
 
-    // Scroll back to top of page
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ═══════════════════════════════════════════
-// Navbar: user info + logout
+// Navbar
 // ═══════════════════════════════════════════
 async function initNavbar() {
     const data = await apiFetch('/api/auth/me');
