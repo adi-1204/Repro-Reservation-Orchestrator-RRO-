@@ -154,6 +154,36 @@ ALTER TABLE Bug_Tests
     ADD COLUMN station_name VARCHAR(100) NULL;
 
 -- ============================================
+-- Reservations_By_Name Table
+-- ============================================
+CREATE TABLE Reservations_By_Name (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    bug_id VARCHAR(100) NOT NULL,
+    stations VARCHAR(500) NOT NULL,
+    specify_station BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(ID) ON DELETE CASCADE,
+    INDEX idx_user_res_name (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- Reservations_By_Config Table
+-- ============================================
+CREATE TABLE Reservations_By_Config (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    resource_group VARCHAR(100) NOT NULL,
+    number_of_nodes INT NOT NULL,
+    code_floor VARCHAR(100),
+    number_of_pds INT NOT NULL,
+    rc BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(ID) ON DELETE CASCADE,
+    INDEX idx_user_res_config (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
 -- Verify Tables Created
 -- ============================================
 SHOW TABLES;
@@ -169,3 +199,5 @@ DESC Bug_Tests;
 DESC Bug_stations;
 DESC Bug_Comments;
 DESC ML_Analysis;
+DESC Reservations_By_Name;
+DESC Reservations_By_Config;
