@@ -9,7 +9,7 @@ from app.models.user import User
 from app.models.workgroup import Workgroup
 from app.models.workgroupAssignment import WorkgroupAssignment
 from app.auth_utils import get_current_auth_token, get_current_role, get_current_user, get_current_user_id
-from sqlalchemy import select
+from sqlalchemy import select, or_
 
 bug = Blueprint("bugDashboard", __name__)
 
@@ -373,10 +373,13 @@ def get_stations():
 
 
 # --------------------------------------------------
-# RESERVE STATION (stub - accepts data, does not persist)
+# RESERVE STATION (stores reservation details)
 # --------------------------------------------------
 @bug.route("/api/reservations", methods=["POST"])
 def create_reservation():
+    from app.models.reservation_by_name import ReservationByName
+    from app.models.reservation_by_config import ReservationByConfig
+
     user_id = get_current_user_id()
     role = get_current_role()
     if not user_id:
@@ -385,12 +388,53 @@ def create_reservation():
         return jsonify({"error": "Only engineers can reserve stations"}), 403
 
     data = request.json
-    print(f"[Reservation] Received: {data}", flush=True)
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
 
-    return jsonify({
-        "message": "Reservation received (stub)",
-        "data": data,
-    }), 201
+    res_type = data.get('type')
+    try:
+        if res_type == 'by_name':
+            stations = data.get('stations', [])
+            stations_str = ",".join(stations) if isinstance(stations, list) else str(stations)
+            
+            new_res = ReservationByName(
+                user_id=user_id,
+                bug_id=data.get('bug_id'),
+                stations=stations_str,
+                specify_station=data.get('specify_station', False)
+            )
+            db.session.add(new_res)
+            db.session.commit()
+            
+            return jsonify({
+                "message": "Reservation by name stored successfully",
+                "reservation_id": new_res.id
+            }), 201
+
+        elif res_type == 'by_config':
+            new_res = ReservationByConfig(
+                user_id=user_id,
+                resource_group=data.get('resource_group'),
+                number_of_nodes=data.get('number_of_nodes'),
+                code_floor=data.get('code_floor'),
+                number_of_pds=data.get('number_of_pds'),
+                rc=data.get('rc', False)
+            )
+            db.session.add(new_res)
+            db.session.commit()
+            
+            return jsonify({
+                "message": "Reservation by config stored successfully",
+                "reservation_id": new_res.id
+            }), 201
+        
+        else:
+            return jsonify({"error": f"Invalid reservation type: {res_type}"}), 400
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"[Reservation Error] {str(e)}", flush=True)
+        return jsonify({"error": "Failed to store reservation", "details": str(e)}), 500
 # --------------------------------------------------
 # GET BUG ML ANALYSIS
 # --------------------------------------------------
