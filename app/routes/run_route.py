@@ -18,6 +18,24 @@ from app.models.run_parameters import RunParameter
 run_bp = Blueprint("run", __name__)
 
 
+def _serialize_run_entry(run):
+    bug = run.bug
+    return {
+        "id": run.id,
+        "bug_code": bug.bug_code if bug else None,
+        "bug_name": bug.bug_name if bug else None,
+        "test_name": run.test_name,
+        "run_mode": run.run_mode,
+        "run_type": run.run_type,
+        "workflow": run.workflow,
+        "run_count": run.run_count,
+        "provision_setup": run.provision_setup,
+        "do_checkout_update": bool(run.do_checkout_update),
+        "status": run.status,
+        "submitted_at": run.submitted_at.isoformat() if run.submitted_at else None,
+    }
+
+
 # ── Page route ────────────────────────────────────────────────────────────────
 
 @run_bp.route("/run", methods=["GET"])
@@ -80,10 +98,14 @@ def submit_run():
 
     do_checkout_update = bool(data.get("do_checkout_update", False))
 
+    test_name_value = data.get("test_name")
+    if isinstance(test_name_value, list):
+        test_name_value = ", ".join(str(x).strip() for x in test_name_value if str(x).strip())
+
     run_parameter = RunParameter(
         bug_id=bug.id,
         run_mode=run_mode,
-        test_name=(data.get("test_name") or None),
+        test_name=(test_name_value or None),
         run_type=run_type,
         workflow=(data.get("workflow") or None),
         run_count=run_count,
@@ -100,3 +122,25 @@ def submit_run():
         return jsonify({"success": False, "error": "Failed to create run"}), 500
 
     return jsonify({"success": True, "run_id": run_parameter.id}), 201
+
+
+@run_bp.route("/api/runs", methods=["GET"])
+def get_runs():
+    """Return run history for the currently logged-in engineer."""
+    current_user_id = get_current_user_id()
+    if not current_user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    if get_current_role() != "Engineer":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    runs = (
+        RunParameter.query
+        .filter(RunParameter.submitted_by == current_user_id)
+        .order_by(RunParameter.submitted_at.desc(), RunParameter.id.desc())
+        .all()
+    )
+
+    return jsonify({
+        "runs": [_serialize_run_entry(run) for run in runs]
+    })

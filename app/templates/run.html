@@ -265,6 +265,43 @@
         </div>
         <!-- end combined card -->
 
+        <!-- Run History -->
+        <div class="run-card" id="section-run-history">
+            <div class="run-card-header">
+                <h2 class="run-card-title">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 3h12v12H3z"/>
+                        <path d="M3 7h12M7 3v12"/>
+                    </svg>
+                    Bug Run History
+                </h2>
+                <p class="run-card-subtitle">Latest runs submitted by you</p>
+            </div>
+            <div class="run-history-wrap">
+                <table class="run-history-table">
+                    <thead>
+                        <tr>
+                            <th>Run ID</th>
+                            <th>Bug ID</th>
+                            <th>Bug Name</th>
+                            <th>Test</th>
+                            <th>Workflow</th>
+                            <th>Mode</th>
+                            <th>Type</th>
+                            <th>Count</th>
+                            <th>Status</th>
+                            <th>Submitted</th>
+                        </tr>
+                    </thead>
+                    <tbody id="runHistoryBody">
+                        <tr>
+                            <td colspan="10" class="run-history-empty">Loading run history...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </main>
 
     <div id="toast" class="toast"></div>

@@ -22,6 +22,7 @@ const state = {
 let allSystemTestNames = [];
 let bugTests = [];
 let allBugs = [];
+let runHistory = [];
 
 function getAuthHeaders(h = {}) {
     return window.RROAuth ? window.RROAuth.getAuthHeaders(h) : h;
@@ -54,6 +55,65 @@ function showToast(msg, type = 'success') {
     t.textContent = msg;
     t.className = `toast show ${type}`;
     setTimeout(() => { t.className = 'toast'; }, 3500);
+}
+
+function formatDateTime(value) {
+    if (!value) return '—';
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return '—';
+    return dt.toLocaleString();
+}
+
+function statusBadgeClass(status) {
+    const value = String(status || '').toLowerCase();
+    if (value === 'running') return 'run-status-badge run-status-badge--running';
+    if (value === 'completed') return 'run-status-badge run-status-badge--completed';
+    if (value === 'failed') return 'run-status-badge run-status-badge--failed';
+    return 'run-status-badge run-status-badge--queued';
+}
+
+function renderRunHistory() {
+    const tbody = document.getElementById('runHistoryBody');
+    if (!tbody) return;
+
+    if (!runHistory.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10" class="run-history-empty">No run records found yet.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = runHistory.map(run => `
+        <tr>
+            <td>#${esc(run.id)}</td>
+            <td>${esc(run.bug_code || '—')}</td>
+            <td>${esc(run.bug_name || '—')}</td>
+            <td class="run-history-tests">${esc(run.test_name || '—')}</td>
+            <td>${esc(run.workflow || '—')}</td>
+            <td>${esc(run.run_mode || '—')}</td>
+            <td>${esc(run.run_type || '—')}</td>
+            <td>${esc(run.run_count ?? '—')}</td>
+            <td><span class="${statusBadgeClass(run.status)}">${esc(run.status || 'queued')}</span></td>
+            <td>${esc(formatDateTime(run.submitted_at))}</td>
+        </tr>
+    `).join('');
+}
+
+async function loadRunHistory() {
+    const tbody = document.getElementById('runHistoryBody');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10" class="run-history-empty">Loading run history...</td>
+            </tr>
+        `;
+    }
+
+    const data = await apiFetch('/api/runs');
+    runHistory = data?.runs || [];
+    renderRunHistory();
 }
 
 // ═══════════════════════════════════════════
@@ -405,7 +465,7 @@ function buildRunPayloadFromActiveTab() {
     return {
         bug_id: String(state.bugToRepro.bug_code || '').trim(),
         run_mode: state.runMode,
-        test_name: state.selectedTests[0] || '',
+        test_name: state.selectedTests,
         run_type: activeFields.run_type,
         workflow: activeFields.workflow,
         run_count: activeFields.run_count,
@@ -558,6 +618,7 @@ async function submitRun(payload) {
             return;
         }
 
+        await loadRunHistory();
         resetPage();
         showToast(data.message || 'Run submitted successfully!', 'success');
     } catch (err) {
@@ -643,6 +704,7 @@ async function initNavbar() {
 window.addEventListener('DOMContentLoaded', async () => {
     await initNavbar();
     await loadAllBugs();
+    await loadRunHistory();
 
     initRunMode();
     initBugReproCombobox();

@@ -416,6 +416,46 @@ def _parse_chathpe_response(text):
             matched = True
 
     if not matched:
+        # Markdown numbered fallback used by local mock API:
+        # 1. **Failure Signature**: ...
+        # 2. **Key Engineer Findings**: ...
+        # 3. **Reproduction Steps / Config Changes**: ...
+        numbered = re.findall(
+            r"(?ms)^\s*(\d+)\.\s*\*{0,2}\s*([^:\n*]+?)\s*\*{0,2}\s*:\s*(.*?)(?=^\s*\d+\.\s|\Z)",
+            text,
+        )
+        if numbered:
+            by_idx = {int(idx): body.strip() for idx, _title, body in numbered}
+            by_title = {title.strip().lower(): body.strip() for _idx, title, body in numbered}
+
+            # Prefer semantic title mapping first.
+            for title, body in by_title.items():
+                if "config" in title:
+                    result["config_changes"] = body
+                    matched = True
+                if "repro" in title and ("step" in title or "action" in title):
+                    result["repro_actions"] = body
+                    matched = True
+                if "readiness" in title or "finding" in title:
+                    result["repro_readiness"] = body
+                    matched = True
+
+            # Positional fallback if semantic mapping missed any fields.
+            if not result["repro_actions"] and by_idx.get(1):
+                result["repro_actions"] = by_idx[1]
+                matched = True
+            if not result["repro_readiness"] and by_idx.get(2):
+                result["repro_readiness"] = by_idx[2]
+                matched = True
+            if not result["config_changes"] and by_idx.get(3):
+                result["config_changes"] = by_idx[3]
+                matched = True
+
+            if not result["summary"]:
+                plain = re.sub(r"\*+", "", text).strip()
+                result["summary"] = plain
+
+    if not matched:
         # Flat label fallback
         flat = [
             ("repro_actions",   r"REPRO_ACTIONS:\s*(.*?)(?=\nCONFIG_CHANGES:|$)"),
