@@ -6,10 +6,8 @@ load_dotenv()
 
 class Config:
     #  FIX 7: SECRET_KEY must come from the environment, never hardcoded.
-    # The hardcoded string was overriding the env var on the line below it.
-    # Generate a strong key with: python -c "import secrets; print(secrets.token_hex(32))"
-    # Then add SECRET_KEY=<that value> to your .env file.
-    SECRET_KEY = os.getenv("SECRET_KEY", os.urandom(32))
+    # We check for both 'KEY' (provided by user) and 'SECRET_KEY'.
+    SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("KEY") or os.urandom(32)
 
     DB_USER = os.getenv("DB_USER")
     DB_PASSWORD = quote_plus(os.getenv("DB_PASSWORD", ""))

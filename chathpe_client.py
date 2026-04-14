@@ -12,11 +12,13 @@ import re
 
 import requests
 import urllib3
+import os
 
 # Suppress SSL warnings — ChatHPE endpoint uses internal HPE certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-_API_BASE     = "https://api.chathpe.it.hpe.com/v2.8"
+_MOCK_HOST = os.getenv("BUGZ_HOST", "https://api.chathpe.it.hpe.com")
+_API_BASE = f"{_MOCK_HOST}/v2.8"
 _SESSION_URL  = f"{_API_BASE}/sessionId_generator"
 _PREFS_URL    = f"{_API_BASE}/preferences"
 _CHATLITE_URL = f"{_API_BASE}/call/chatlite"

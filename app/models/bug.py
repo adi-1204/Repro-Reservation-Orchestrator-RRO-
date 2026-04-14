@@ -1,29 +1,33 @@
 from app.extensions import db
 
-
 class Bug(db.Model):
 
     __tablename__ = "Bugs"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-
-    priority = db.Column(
-        db.Enum('P0', 'P1', 'P2', 'P3', 'P4'),
-        default='P2'
-    )
-
-    bug_code = db.Column(
-        db.String(50),
-        unique=True,
-        nullable=False
-    )
-
-    bug_name = db.Column(db.String(255), nullable=True)
+    bug_code = db.Column(db.String(100), primary_key=True)
+    bug_name = db.Column(db.String(255))
 
     bug_type = db.Column(
         db.Enum('repro', 'test'),
-        nullable=False
+        nullable=False,
+        default='repro',
+        server_default='repro'
     )
+
+    priority = db.Column(db.String(10), default='P2')
+
+    status = db.Column(
+        db.Enum('pending', 'running', 'completed'),
+        nullable=False,
+        default='pending',
+        server_default='pending'
+    )
+
+    summary = db.Column(db.String(255))
+    build_id = db.Column(db.String(100), db.ForeignKey("Builds.version", ondelete="CASCADE"), nullable=False)
+
+    station_config = db.Column(db.String(100))
+    resource_group = db.Column(db.String(100))
 
     engineer_id = db.Column(
         db.Integer,
@@ -32,29 +36,11 @@ class Bug(db.Model):
 
     workgroup_id = db.Column(
         db.Integer,
-        db.ForeignKey("Workgroup_Schema.ID", ondelete="SET NULL")
-    )
-
-    summary = db.Column(db.String(255))
-
-    station_config = db.Column(db.String(100))
-    resource_group = db.Column(db.String(100))
-
-    status = db.Column(
-        db.Enum('pending', 'running', 'scheduled', 'completed'),
-        default='pending'
-    )
-
-    created_at = db.Column(
-        db.TIMESTAMP,
-        server_default=db.func.current_timestamp()
+        db.ForeignKey("Workgroup_Schema.ID", ondelete="CASCADE")
     )
 
     # Indexes
     __table_args__ = (
-        db.Index('idx_bug_code', 'bug_code'),
-        db.Index('idx_engineer', 'engineer_id'),
-        db.Index('idx_priority', 'priority'),
         db.Index('idx_bug_status', 'status'),
         db.Index('idx_bug_type', 'bug_type'),
         db.Index('idx_bug_workgroup', 'workgroup_id'),
@@ -99,4 +85,10 @@ class Bug(db.Model):
         "RunParameter",
         back_populates="bug",
         cascade="all, delete-orphan"
+    )
+
+    build_record = db.relationship(
+        "Build",
+        back_populates="bugs",
+        foreign_keys=[build_id]
     )

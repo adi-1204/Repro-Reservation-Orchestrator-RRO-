@@ -103,7 +103,7 @@ def submit_run():
         test_name_value = ", ".join(str(x).strip() for x in test_name_value if str(x).strip())
 
     run_parameter = RunParameter(
-        bug_id=bug.id,
+        bug_id=bug.bug_code,
         run_mode=run_mode,
         test_name=(test_name_value or None),
         run_type=run_type,

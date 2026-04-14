@@ -323,7 +323,6 @@ function generateBugsTableRows(bugs) {
 
         return `
         <tr class="bug-row"
-            data-bug-db-id="${escapeHtml(bug.db_id)}"
             data-bug-code="${escapeHtml(bug.id)}"
             data-bug-name="${escapeHtml(bug.bug_name || '—')}"
             data-priority="${escapeHtml(bug.priority || 'P2')}"
@@ -336,6 +335,9 @@ function generateBugsTableRows(bugs) {
             <td><span class="priority-badge ${priorityClass}">${escapeHtml(bug.priority || 'P2')}</span></td>
             <td>
                 <div class="bug-id-main">${escapeHtml(bug.id)}</div>
+            </td>
+            <td>
+                <div class="bug-build-main">${escapeHtml(bug.build || '—')}</div>
             </td>
             <td class="bug-name-cell" title="${escapeHtml(bugNameFull)}">${escapeHtml(bugNameFull)}</td>
             <td class="engineer-cell">${escapeHtml(bug.engineer_name || 'Unassigned')}</td>
@@ -449,7 +451,7 @@ function buildMlAnalysisSectionHtml(analysisPayload) {
 function generateExpansionHtml(bugCode, testsPayload, analysisPayload) {
     return `
         <tr class="expansion-row" data-expansion-for="${escapeHtml(bugCode)}">
-            <td colspan="5">
+            <td colspan="6">
                 ${buildTestsTableHtml(testsPayload)}
                 ${buildMlAnalysisSectionHtml(analysisPayload)}
             </td>
@@ -478,11 +480,9 @@ async function toggleBugExpansion(row) {
     if (testsTrigger) testsTrigger.classList.add('open');
     if (chevron) chevron.classList.add('open');
 
-    const dbId = row.dataset.bugDbId;
-
     const [testsPayload, analysisPayload] = await Promise.all([
-        apiFetch('/api/bugs/' + dbId + '/tests'),
-        apiFetch('/api/bugs/' + dbId + '/analysis')
+        apiFetch('/api/bugs/' + bugCode + '/tests'),
+        apiFetch('/api/bugs/' + bugCode + '/analysis')
     ]);
 
     if (row.dataset.expanded !== 'true') {

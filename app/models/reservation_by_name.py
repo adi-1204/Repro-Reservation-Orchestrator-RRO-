@@ -6,7 +6,7 @@ class ReservationByName(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('Users.ID'), nullable=False)
-    bug_id = db.Column(db.String(100), nullable=False)
+    bug_id = db.Column(db.String(100), db.ForeignKey('Bugs.bug_code', ondelete="CASCADE"), nullable=False)
     stations = db.Column(db.String(500), nullable=False)  # Comma-separated station names
     specify_station = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

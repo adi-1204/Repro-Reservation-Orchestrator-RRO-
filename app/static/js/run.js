@@ -149,7 +149,7 @@ function renderBugDropdown(filtered, query) {
         dd.innerHTML = `<div class="run-dropdown-empty">No bugs found for "${esc(query)}"</div>`;
     } else {
         dd.innerHTML = filtered.map(b => `
-            <div class="run-dropdown-item" data-bug-id="${b.db_id}" data-bug-code="${esc(b.id)}" data-bug-name="${esc(b.bug_name || '')}">
+            <div class="run-dropdown-item" data-bug-code="${esc(b.id)}" data-bug-name="${esc(b.bug_name || '')}">
                 <span><strong>${esc(b.id)}</strong> — ${esc(b.bug_name || 'Unnamed')}</span>
             </div>
         `).join('');
@@ -162,7 +162,6 @@ function renderBugDropdown(filtered, query) {
 
 function selectBug(item) {
     state.bugToRepro = {
-        db_id: item.dataset.bugId,
         bug_code: item.dataset.bugCode,
         bug_name: item.dataset.bugName,
     };
@@ -172,12 +171,12 @@ function selectBug(item) {
 
     state.selectedTests = [];
     renderSelectedTags();
-    loadBugTests(item.dataset.bugId);
+    loadBugTests(item.dataset.bugCode);
 }
 
-async function loadBugTests(dbId) {
+async function loadBugTests(bugCode) {
     bugTests = [];
-    const data = await apiFetch(`/api/bugs/${dbId}/tests`);
+    const data = await apiFetch(`/api/bugs/${bugCode}/tests`);
     if (data && Array.isArray(data.tests)) {
         bugTests = data.tests.map(t => t.test_name).filter(Boolean);
     }

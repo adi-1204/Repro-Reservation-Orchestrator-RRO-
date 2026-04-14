@@ -158,18 +158,18 @@ def chathpe_chatlite():
     test_name = test_match.group(1) if test_match else "N/A"
  
     analysis = (
-        f"**Bug {bug_id} – Mock Analysis**\n\n"
-        f"1. **Failure Signature**: The test `{test_name}` failed during the execution "
-        f"phase, indicating a potential timing or resource-contention issue in the "
-        f"affected component.\n\n"
-        f"2. **Key Engineer Findings**: Engineers have identified that the failure is "
-        f"intermittent and correlates with high-load conditions. Logs show an unexpected "
-        f"state transition that should be investigated further.\n\n"
-        f"3. **Reproduction Steps / Config Changes**: To reproduce, use the same test ring "
-        f"and build version noted in the metadata. Ensure the cluster configuration matches "
-        f"the original setup (number of nodes and controller types). No additional "
-        f"information is required to proceed with reproduction.\n\n"
-        f"*(This is a mock response from the local test server.)*"
+        f"1. REPRO ACTIONS\n"
+        f"   To reproduce Bug {bug_id}, use the `{test_name}` script on the original cluster. "
+        f"Observe state transitions in the logs.\n\n"
+        f"2. CONFIG CHANGES\n"
+        f"   Set the number of nodes to ensure the cluster configuration matches "
+        f"the original setup recorded in the metadata.\n\n"
+        f"3. REPRO READINESS\n"
+        f"   NOW. The failure signature is clear and logs indicate a timing issue. "
+        f"No additional info is required.\n\n"
+        f"SUMMARY\n"
+        f"Bug {bug_id} shows a failure in `{test_name}`. Intermittent timing issue "
+        f"correlated with high-load conditions."
     )
  
     print(f"[mock ChatHPE] POST /v2.8/call/chatlite  bug_id={bug_id}")

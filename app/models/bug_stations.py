@@ -8,8 +8,8 @@ class BugStation(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
 
     bug_id = db.Column(
-        db.Integer,
-        db.ForeignKey("Bugs.id", ondelete="CASCADE")
+        db.String(100),
+        db.ForeignKey("Bugs.bug_code", ondelete="CASCADE")
     )
 
     station_name = db.Column(db.String(100))

@@ -41,7 +41,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 log = logging.getLogger(__name__)
 
-_BUGZ_HOST = "https://bugs.storage.hpecorp.net"
+_BUGZ_HOST = os.getenv("BUGZ_HOST", "https://bugs.storage.hpecorp.net")
 
 _VALID_PRIORITIES = {"P0", "P1", "P2", "P3", "P4"}
 
@@ -421,7 +421,7 @@ def _parse_chathpe_response(text):
         # 2. **Key Engineer Findings**: ...
         # 3. **Reproduction Steps / Config Changes**: ...
         numbered = re.findall(
-            r"(?ms)^\s*(\d+)\.\s*\*{0,2}\s*([^:\n*]+?)\s*\*{0,2}\s*:\s*(.*?)(?=^\s*\d+\.\s|\Z)",
+            r"(?ms)^\s*(\d+)\.\s*(?:\*\*)?([^:\n*]+?)(?:\*\*)?\s*:\s*(.*?)(?=^\s*\d+\.\s|\n+\s*\*|(?:\n{2,}|\Z))",
             text,
         )
         if numbered:
@@ -579,6 +579,7 @@ class BugzillaIngester:
         from app.models.bug_tests import BugTest
         from app.models.bug_stations import BugStation
         from app.models.ml_analysis import MLAnalysis
+        from app.models.build import Build
 
         stats = {"ingested": 0, "updated": 0, "skipped": 0, "errors": []}
 
@@ -602,17 +603,30 @@ class BugzillaIngester:
 
         print(f"[Bugzilla] Fetched {len(raw_bugs)} total bugs for build {self.release_version}.", flush=True)
 
+        # Ensure the main release build exists in global table
+        rel_build = Build.query.get(self.release_version)
+        if not rel_build:
+            rel_build = Build(version=self.release_version)
+            db_session.add(rel_build)
+            db_session.flush()
+
         # 3. Filter to REPRODUCE only (same as bug_info.py makeTable)
         repro_bugs = [b for b in raw_bugs if (b.get("status") or "").upper() == "REPRODUCE"]
         print(f"[Bugzilla] {len(repro_bugs)} bug(s) have status REPRODUCE.", flush=True)
 
         # 4. Load local MiniLM model once (reused across all bugs)
-        _model_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "all-MiniLM-L6-v2",
-        )
-        print(f"[Ingest] Loading local MiniLM model from {_model_path}...", flush=True)
-        embedding_model = SentenceTransformer(_model_path)
+        # Check for local model folder first
+        _base_dir = os.path.dirname(os.path.abspath(__file__))
+        _model_path = os.path.join(_base_dir, "all-MiniLM-L6-v2")
+        if not os.path.exists(_model_path):
+            # Fallback to downloading by name if local folder is missing
+            print(f"[Ingest] Local model not found at {_model_path}, using name 'all-MiniLM-L6-v2' instead.", flush=True)
+            _model_path_or_name = "all-MiniLM-L6-v2"
+        else:
+            _model_path_or_name = _model_path
+            
+        print(f"[Ingest] Loading model from {_model_path_or_name}...", flush=True)
+        embedding_model = SentenceTransformer(_model_path_or_name)
         print("[Ingest] Model loaded.", flush=True)
 
         # 5. Set up ChatHPE session once (reused across all bugs)
@@ -682,7 +696,7 @@ class BugzillaIngester:
                 if not is_new:
                     existing_comment_ids = {
                         c.comment_bugzilla_id
-                        for c in BugComment.query.filter_by(bug_id=bug.id).all()
+                        for c in BugComment.query.filter_by(bug_id=bug.bug_code).all()
                         if c.comment_bugzilla_id is not None
                     }
 
@@ -691,37 +705,48 @@ class BugzillaIngester:
                     if c_bugz_id in existing_comment_ids:
                         continue
                     db_session.add(BugComment(
-                        bug_id=bug.id,
-                        comment_bugzilla_id=c_bugz_id,
+                        bug_id=bug.bug_code,
                         creator=c.get("creator", ""),
-                        creation_time=_parse_bugz_datetime(
-                            c.get("creation_time") or c.get("time")
-                        ),
                         text=c.get("text", ""),
                     ))
 
                 # 6c. Regex-extract structured metadata from all comments
                 metadata = _extract_all_test_metadata(raw_comments)
+                
+                # Assign global build from metadata
+                b_val = None
+                if metadata.get("builds"):
+                    # Use the first/most common build version found in comments
+                    b_val = next(iter(metadata["builds"]), None)
+                
+                # FALLBACK: If no build found in comments, use the main release version
+                if not b_val:
+                    b_val = self.release_version
+
+                if b_val:
+                    b_obj = Build.query.get(b_val)
+                    if not b_obj:
+                        b_obj = Build(version=b_val)
+                        db_session.add(b_obj)
+                        db_session.flush()
+                    bug.build_id = b_obj.version
+
                 print(
-                    f"[Ingest] Bug {bug_id_str}: stations={metadata['test_rings']}, "
+                    f"[Ingest] Bug {bug_id_str}: build={bug.build_id}, stations={metadata['test_rings']}, "
                     f"test_names={metadata['test_names']}", flush=True
                 )
 
-                # 6d. Upsert BugTest rows — one per comment that has a Test Name,
-                #     using that comment's own station/build/nodes/config values.
+                # 6d. Upsert BugTest rows (Minimalist)
                 if not is_new:
-                    BugTest.query.filter_by(bug_id=bug.id).delete()
+                    BugTest.query.filter_by(bug_id=bug.bug_code).delete()
 
-                # Collect one record per unique (test, station, build), merging
-                # fields across comments so the row with the most data wins.
-                merged_tests: dict = {}   # key -> field dict
+                merged_tests: dict = {}
                 for c in raw_comments:
                     text = c if isinstance(c, str) else c.get("text", "")
                     cm = _extract_comment_metadata(text)
                     test_name = cm.get("test_names")
                     if not test_name:
                         continue
-                    # Base filename only — strip path and CLI arguments
                     _basename = test_name.replace("\\", "/").rsplit("/", 1)[-1]
                     short_name = re.split(r"(?<=\.py)\s+", _basename, maxsplit=1)[0].strip()[:100]
                     station   = (cm.get("test_rings") or "")[:100]
@@ -733,50 +758,22 @@ class BugzillaIngester:
                     key = (short_name, station, build)
                     if key not in merged_tests:
                         merged_tests[key] = {
-                            "test_name":        short_name,
-                            "test_plan_name":   (cm.get("test_plans") or "")[:200],
-                            "test_ring_name":   station,
-                            "execution_start":  _parse_bugz_datetime(cm.get("exec_starts")),
-                            "execution_end":    _parse_bugz_datetime(cm.get("exec_ends")),
-                            "controller_types": (cm.get("controllers") or "")[:100],
-                            "number_of_nodes":  nodes,
-                            "failure_type":     (cm.get("failure_types") or "")[:50],
-                            "build_version":    build,
-                            "configuration":    config,
-                            "nfs_path":         (cm.get("nfs_paths") or "")[:500],
-                            "odin_link":        (cm.get("odin_links") or "")[:500],
-                            "signature":        (cm.get("signatures") or "")[:500],
-                            "station_name":     station,
+                            "test_name":    short_name,
+                            "station_name": station,
+                            "build_id":     build,
+                            "configuration": config
                         }
-                    else:
-                        # Fill in any fields that were missing in earlier comments
-                        row = merged_tests[key]
-                        if nodes and not row["number_of_nodes"]:
-                            row["number_of_nodes"] = nodes
-                            row["configuration"]   = config
-                        for field, src_key in [
-                            ("test_plan_name",   "test_plans"),
-                            ("execution_start",  "exec_starts"),
-                            ("execution_end",    "exec_ends"),
-                            ("controller_types", "controllers"),
-                            ("failure_type",     "failure_types"),
-                            ("nfs_path",         "nfs_paths"),
-                            ("odin_link",        "odin_links"),
-                            ("signature",        "signatures"),
-                        ]:
-                            if not row[field] and cm.get(src_key):
-                                row[field] = (cm.get(src_key) or "")[:500]
 
                 for fields in merged_tests.values():
-                    db_session.add(BugTest(bug_id=bug.id, **fields))
+                    db_session.add(BugTest(bug_id=bug.bug_code, **fields))
 
-                # 6e. Upsert BugStation rows (one per unique station name)
+                # 6e. Upsert BugStation rows
                 if not is_new:
-                    BugStation.query.filter_by(bug_id=bug.id).delete()
+                    BugStation.query.filter_by(bug_id=bug.bug_code).delete()
                 for station_name in metadata["test_rings"]:
                     if station_name:
                         db_session.add(BugStation(
-                            bug_id=bug.id,
+                            bug_id=bug.bug_code,
                             station_name=station_name[:100],
                         ))
 
@@ -802,9 +799,9 @@ class BugzillaIngester:
                             )
                             parsed = _parse_chathpe_response(response_text)
 
-                            existing_ml = MLAnalysis.query.filter_by(bug_id=bug.id).first()
+                            existing_ml = MLAnalysis.query.filter_by(bug_id=bug.bug_code).first()
                             if existing_ml is None:
-                                existing_ml = MLAnalysis(bug_id=bug.id)
+                                existing_ml = MLAnalysis(bug_id=bug.bug_code)
                                 db_session.add(existing_ml)
                             existing_ml.repro_actions   = parsed["repro_actions"]
                             existing_ml.config_changes  = parsed["config_changes"]
@@ -884,7 +881,7 @@ def retry_pending_analysis(db_session, chathpe_creds):
 
     pending = [
         b for b in repro_bugs
-        if _is_bad_repro_actions(MLAnalysis.query.filter_by(bug_id=b.id).first())
+        if _is_bad_repro_actions(MLAnalysis.query.filter_by(bug_id=b.bug_code).first())
     ]
 
     if not pending:
@@ -926,8 +923,8 @@ def retry_pending_analysis(db_session, chathpe_creds):
     for bug in pending:
         try:
             # Load stored comments from DB
-            stored = BugComment.query.filter_by(bug_id=bug.id).all()
-            raw_comments = [{"text": c.text, "id": c.comment_bugzilla_id} for c in stored]
+            stored = BugComment.query.filter_by(bug_id=bug.bug_code).all()
+            raw_comments = [{"text": c.text} for c in stored]
             if not raw_comments:
                 print(f"[Retry] Bug {bug.bug_code}: no comments in DB — skipping.", flush=True)
                 continue
@@ -951,9 +948,9 @@ def retry_pending_analysis(db_session, chathpe_creds):
             )
             parsed = _parse_chathpe_response(response_text)
 
-            ml = MLAnalysis.query.filter_by(bug_id=bug.id).first()
+            ml = MLAnalysis.query.filter_by(bug_id=bug.bug_code).first()
             if ml is None:
-                ml = MLAnalysis(bug_id=bug.id)
+                ml = MLAnalysis(bug_id=bug.bug_code)
                 db_session.add(ml)
             ml.repro_actions   = parsed["repro_actions"]
             ml.config_changes  = parsed["config_changes"]
