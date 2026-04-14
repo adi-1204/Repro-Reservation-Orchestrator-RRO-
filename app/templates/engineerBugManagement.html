@@ -232,6 +232,43 @@
             </div>
         </section>
 
+        <!-- Reservations Table -->
+        <section class="bugs-section" id="reservationsSection">
+            <div class="bugs-header"
+                onclick="let b=this.nextElementSibling; b.style.display=b.style.display==='none'?'block':'none'; this.querySelector('.section-chevron').style.transform=b.style.display==='none'?'rotate(-90deg)':'rotate(0deg)';">
+                <div class="bugs-header-title">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#7c3aed" stroke-width="1.6"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="14" height="13" rx="2" />
+                        <path d="M7 2v4M13 2v4M3 8h14" />
+                    </svg>
+                    <h2>Reservations</h2>
+                    <span class="bug-count-badge" id="reservationsCount">0 reservations</span>
+                </div>
+                <svg class="section-chevron" style="transition: transform 0.2s;" width="24" height="24"
+                    viewBox="0 0 24 24" fill="none">
+                    <rect width="24" height="24" rx="4" fill="#94a3b8" />
+                    <polygon points="7,9 17,9 12,15" fill="#ffffff" />
+                </svg>
+            </div>
+            <div class="table-container">
+                <div class="table-inner">
+                    <table class="bugs-table">
+                        <thead>
+                            <tr>
+                                <th>MODE</th>
+                                <th>BUG ID / RESOURCE GROUP</th>
+                                <th>DETAILS</th>
+                                <th>CREATED AT</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reservationsBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- ───── RESERVE STATION MODAL ───── -->

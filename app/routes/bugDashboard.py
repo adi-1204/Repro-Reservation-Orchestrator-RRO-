@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, jsonify, request, redirect, url_for
+from datetime import datetime
 from app.extensions import db
 from app.models.bug import Bug
 from app.models.bug_comments import BugComment
@@ -373,6 +374,54 @@ def get_stations():
 
 
 # --------------------------------------------------
+# GET RESERVATIONS (engineer's own reservations)
+# --------------------------------------------------
+@bug.route("/api/reservations", methods=["GET"])
+def get_reservations():
+    from app.models.reservation_by_name import ReservationByName
+    from app.models.reservation_by_config import ReservationByConfig
+
+    user_id = get_current_user_id()
+    role = get_current_role()
+
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    if role != "Engineer":
+        return jsonify({"error": "Only engineers can view reservations"}), 403
+
+    by_name = ReservationByName.query.filter_by(user_id=user_id).all()
+    by_config = ReservationByConfig.query.filter_by(user_id=user_id).all()
+
+    reservations = []
+
+    for row in by_name:
+        stations = [s.strip() for s in (row.stations or "").split(',') if s.strip()]
+        reservations.append({
+            "id": row.id,
+            "type": "by_name",
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "bug_id": row.bug_id,
+            "stations": stations,
+            "specify_station": bool(row.specify_station)
+        })
+
+    for row in by_config:
+        reservations.append({
+            "id": row.id,
+            "type": "by_config",
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "resource_group": row.resource_group,
+            "number_of_nodes": row.number_of_nodes,
+            "code_floor": row.code_floor,
+            "number_of_pds": row.number_of_pds,
+            "rc": bool(row.rc)
+        })
+
+    reservations.sort(key=lambda r: r.get("created_at") or "", reverse=True)
+    return jsonify({"reservations": reservations})
+
+
+# --------------------------------------------------
 # RESERVE STATION (stores reservation details)
 # --------------------------------------------------
 @bug.route("/api/reservations", methods=["POST"])
@@ -401,7 +450,8 @@ def create_reservation():
                 user_id=user_id,
                 bug_id=data.get('bug_id'),
                 stations=stations_str,
-                specify_station=data.get('specify_station', False)
+                specify_station=data.get('specify_station', False),
+                created_at=datetime.now()
             )
             db.session.add(new_res)
             db.session.commit()
@@ -418,7 +468,8 @@ def create_reservation():
                 number_of_nodes=data.get('number_of_nodes'),
                 code_floor=data.get('code_floor'),
                 number_of_pds=data.get('number_of_pds'),
-                rc=data.get('rc', False)
+                rc=data.get('rc', False),
+                created_at=datetime.now()
             )
             db.session.add(new_res)
             db.session.commit()

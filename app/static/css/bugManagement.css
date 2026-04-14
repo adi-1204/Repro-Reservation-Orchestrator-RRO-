@@ -679,6 +679,59 @@ body {
     cursor: pointer;
 }
 
+#reservationsSection .bugs-table th:nth-child(1),
+#reservationsSection .bugs-table td:nth-child(1) {
+    width: 14%;
+    text-align: center;
+}
+
+#reservationsSection .bugs-table th:nth-child(2),
+#reservationsSection .bugs-table td:nth-child(2) {
+    width: 28%;
+    text-align: left;
+}
+
+#reservationsSection .bugs-table th:nth-child(3),
+#reservationsSection .bugs-table td:nth-child(3) {
+    width: 40%;
+    text-align: left;
+}
+
+#reservationsSection .bugs-table th:nth-child(4),
+#reservationsSection .bugs-table td:nth-child(4) {
+    width: 18%;
+    text-align: center;
+}
+
+#reservationsSection .bugs-table th {
+    font-size: 10.5px;
+    letter-spacing: 0.4px;
+    padding: 10px 12px;
+}
+
+#reservationsSection .bugs-table td {
+    font-size: 12px;
+    color: #334155;
+    padding: 10px 12px;
+}
+
+#reservationsSection .bugs-table tbody tr:hover {
+    background-color: #f8fafc !important;
+    cursor: default;
+}
+
+#reservationsSection .bug-count-badge {
+    font-size: 11px;
+    padding: 3px 9px;
+}
+
+.reservation-details-cell {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.35;
+}
+
 /* ── Table Cell Styles ── */
 .bug-id-cell {
     font-size: 12.5px;

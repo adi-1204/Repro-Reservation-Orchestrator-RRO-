@@ -79,18 +79,27 @@ function renderRunHistory() {
     if (!runHistory.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="10" class="run-history-empty">No run records found yet.</td>
+                <td colspan="12" class="run-history-empty">No run records found yet.</td>
             </tr>
         `;
         return;
     }
 
-    tbody.innerHTML = runHistory.map(run => `
+    tbody.innerHTML = runHistory.map(run => {
+        const isComprehensive = String(run.run_type || '').toLowerCase() === 'comprehensive';
+        const provisionSetup = isComprehensive ? (run.provision_setup || '—') : '—';
+        const doCheckout = isComprehensive ? (run.do_checkout_update ? 'Yes' : 'No') : '—';
+        const bugName = run.bug_name || '—';
+        const testName = run.test_name || '—';
+
+        return `
         <tr>
             <td>#${esc(run.id)}</td>
             <td>${esc(run.bug_code || '—')}</td>
-            <td>${esc(run.bug_name || '—')}</td>
-            <td class="run-history-tests">${esc(run.test_name || '—')}</td>
+            <td class="run-history-ellipsis" title="${esc(bugName)}">${esc(bugName)}</td>
+            <td class="run-history-ellipsis" title="${esc(testName)}">${esc(testName)}</td>
+            <td class="run-history-ellipsis" title="${esc(provisionSetup)}">${esc(provisionSetup)}</td>
+            <td>${esc(doCheckout)}</td>
             <td>${esc(run.workflow || '—')}</td>
             <td>${esc(run.run_mode || '—')}</td>
             <td>${esc(run.run_type || '—')}</td>
@@ -98,7 +107,8 @@ function renderRunHistory() {
             <td><span class="${statusBadgeClass(run.status)}">${esc(run.status || 'queued')}</span></td>
             <td>${esc(formatDateTime(run.submitted_at))}</td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
 
 async function loadRunHistory() {
@@ -106,7 +116,7 @@ async function loadRunHistory() {
     if (tbody) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="10" class="run-history-empty">Loading run history...</td>
+                <td colspan="12" class="run-history-empty">Loading run history...</td>
             </tr>
         `;
     }
@@ -176,24 +186,45 @@ async function loadBugTests(dbId) {
 function initBugReproCombobox() {
     const input = document.getElementById('bugReproInput');
     const dd = document.getElementById('bugReproDropdown');
+    const combo = document.getElementById('bugReproCombobox');
 
     input.addEventListener('input', () => {
         const q = input.value.trim();
         clearTimeout(bugDebounce);
-        if (!q) { dd.classList.add('hidden'); return; }
         bugDebounce = setTimeout(() => {
             const lower = q.toLowerCase();
-            const filtered = allBugs.filter(b =>
-                b.id.toLowerCase().includes(lower) ||
-                (b.bug_name || '').toLowerCase().includes(lower)
-            ).slice(0, 8);
+            const filtered = q
+                ? allBugs.filter(b =>
+                    b.id.toLowerCase().includes(lower) ||
+                    (b.bug_name || '').toLowerCase().includes(lower)
+                ).slice(0, 8)
+                : allBugs.slice(0, 8);
             renderBugDropdown(filtered, q);
         }, 200);
     });
 
     input.addEventListener('focus', () => {
         const q = input.value.trim();
-        if (q) input.dispatchEvent(new Event('input'));
+        const lower = q.toLowerCase();
+        const filtered = q
+            ? allBugs.filter(b =>
+                b.id.toLowerCase().includes(lower) ||
+                (b.bug_name || '').toLowerCase().includes(lower)
+            ).slice(0, 8)
+            : allBugs.slice(0, 8);
+        renderBugDropdown(filtered, q);
+    });
+
+    combo.addEventListener('click', () => {
+        const q = input.value.trim();
+        const lower = q.toLowerCase();
+        const filtered = q
+            ? allBugs.filter(b =>
+                b.id.toLowerCase().includes(lower) ||
+                (b.bug_name || '').toLowerCase().includes(lower)
+            ).slice(0, 8)
+            : allBugs.slice(0, 8);
+        renderBugDropdown(filtered, q);
     });
 
     input.addEventListener('change', () => {
@@ -446,6 +477,14 @@ function getActiveRunFields() {
 
     document.getElementById(isQuick ? 'errQrRunCount' : 'errCoRunCount').classList.add('hidden');
 
+    if (!isQuick) {
+        const pendingProvisionInput = (container.querySelector('#coProvisionSetup')?.value || '').trim();
+        if (pendingProvisionInput) {
+            const ok = tryAddProvision(pendingProvisionInput);
+            if (!ok) return null;
+        }
+    }
+
     const provisionSetup = isQuick ? '' : state.coProvisionSetup.map(v => v.replace(/\s*★\s*$/, '')).join(',');
     const doCheckoutUpdate = isQuick ? false : Boolean(container.querySelector('#coCheckout')?.checked);
 
@@ -513,7 +552,7 @@ function initQuickRun() {
  */
 function tryAddProvision(rawVal) {
     const val = rawVal.trim();
-    if (!val) return;
+    if (!val) return true;
 
     const errEl = document.getElementById('errProvisionFormat');
 
@@ -521,7 +560,7 @@ function tryAddProvision(rawVal) {
     if (!val.endsWith('.*')) {
         errEl.classList.remove('hidden');
         setTimeout(() => errEl.classList.add('hidden'), 3500);
-        return;
+        return false;
     }
 
     errEl.classList.add('hidden');
@@ -536,6 +575,7 @@ function tryAddProvision(rawVal) {
     }
 
     document.getElementById('coProvisionSetup').value = '';
+    return true;
 }
 
 function initComprehensive() {

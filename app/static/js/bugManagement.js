@@ -200,7 +200,48 @@ async function loadBugsData() {
 
 /** Refresh all dynamic data (called after mutations) */
 async function refreshAll() {
-    await Promise.all([loadBugsData()]);
+    await Promise.all([loadBugsData(), loadReservationsData()]);
+}
+
+async function loadReservationsData() {
+    const reservationsBody = document.getElementById('reservationsBody');
+    const reservationsCount = document.getElementById('reservationsCount');
+
+    if (!reservationsBody) return;
+
+    const data = await apiFetch('/api/reservations');
+    const reservations = Array.isArray(data?.reservations) ? data.reservations : [];
+
+    if (!reservations.length) {
+        reservationsBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#64748b;">No reservations yet</td></tr>';
+        if (reservationsCount) reservationsCount.textContent = '0 reservations';
+        return;
+    }
+
+    reservationsBody.innerHTML = reservations.map((r) => {
+        const isByName = r.type === 'by_name';
+        const modeLabel = isByName ? 'By Name' : 'By Config';
+        const primary = isByName ? (r.bug_id || '—') : (r.resource_group || '—');
+        const details = isByName
+            ? ((r.stations || []).join(', ') || '—')
+            : `Nodes: ${r.number_of_nodes ?? '—'}, PDs: ${r.number_of_pds ?? '—'}, Type: ${r.rc ? 'RC' : 'Non-RC'}${r.code_floor ? `, Floor: ${r.code_floor}` : ''}`;
+        const createdAt = r.created_at ? new Date(r.created_at).toLocaleString() : '—';
+        const detailsEscaped = escapeHtml(String(details));
+
+        return `
+            <tr>
+                <td>${escapeHtml(String(modeLabel))}</td>
+                <td>${escapeHtml(String(primary))}</td>
+                <td class="reservation-details-cell" title="${detailsEscaped}">${detailsEscaped}</td>
+                <td>${escapeHtml(String(createdAt))}</td>
+            </tr>
+        `;
+    }).join('');
+
+    if (reservationsCount) {
+        const count = reservations.length;
+        reservationsCount.textContent = `${count} ${count === 1 ? 'reservation' : 'reservations'}`;
+    }
 }
 
 /* =========================================
@@ -685,6 +726,7 @@ async function init() {
     await loadCurrentUser();
     updateOwnershipFilterUi();
     await loadBugsData();
+    await loadReservationsData();
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -769,8 +811,32 @@ function resetReserveForm() {
     reserveDom.stationDropdown?.classList.add('hidden');
 }
 
+function clearByNameFormValues() {
+    selectedStations = [];
+    renderStationTags();
+
+    if (reserveDom.bugIdInput) reserveDom.bugIdInput.value = '';
+    if (reserveDom.stationInput) reserveDom.stationInput.value = '';
+    if (reserveDom.specifyStation) reserveDom.specifyStation.checked = false;
+    if (reserveDom.stationManual) reserveDom.stationManual.value = '';
+    if (reserveDom.specifyStationGroup) reserveDom.specifyStationGroup.classList.add('hidden');
+    if (reserveDom.stationDropdownGroup) reserveDom.stationDropdownGroup.classList.remove('hidden');
+    reserveDom.bugIdDropdown?.classList.add('hidden');
+    reserveDom.stationDropdown?.classList.add('hidden');
+}
+
+function clearByConfigFormValues() {
+    if (reserveDom.resourceGroup) reserveDom.resourceGroup.value = '';
+    if (reserveDom.numNodes) reserveDom.numNodes.value = '';
+    if (reserveDom.codeFloor) reserveDom.codeFloor.value = '';
+    if (reserveDom.numPDs) reserveDom.numPDs.value = '';
+    const rcNo = document.querySelector('input[name="reserveRC"][value="no"]');
+    if (rcNo) rcNo.checked = true;
+}
+
 /* ── Sliding Toggle ── */
 function switchReserveTab(tab) {
+    const previousTab = reserveActiveTab;
     reserveActiveTab = tab;
     reserveDom.tabByName.classList.toggle('active', tab === 'byName');
     reserveDom.tabByConfig.classList.toggle('active', tab === 'byConfig');
@@ -779,6 +845,14 @@ function switchReserveTab(tab) {
     // Slide the indicator
     if (reserveDom.toggleSlider) {
         reserveDom.toggleSlider.classList.toggle('right', tab === 'byConfig');
+    }
+
+    if (previousTab !== tab) {
+        if (tab === 'byConfig') {
+            clearByNameFormValues();
+        } else {
+            clearByConfigFormValues();
+        }
     }
 }
 
@@ -967,14 +1041,6 @@ async function handleReserveSubmit() {
                 document.getElementById('stationCombobox')?.classList.add('input-error');
             }
             isValid = false;
-        } else if (specifyMode) {
-            const invalidStations = stations.filter(s => !allStationOptions.some(opt => opt.toLowerCase() === s.toLowerCase()));
-            if (invalidStations.length > 0) {
-                document.getElementById('errStationManual').textContent = `Invalid stations: ${invalidStations.join(', ')}. Use commas to separate multiple valid stations.`;
-                document.getElementById('errStationManual').classList.add('visible');
-                reserveDom.stationManual?.classList.add('input-error');
-                isValid = false;
-            }
         }
 
         if (!isValid) return;
@@ -1042,6 +1108,7 @@ async function handleReserveSubmit() {
         const result = await response.json();
         showToast('Reservation submitted successfully!', 'success');
         closeReserveModal();
+        await loadReservationsData();
     } catch (err) {
         console.error("Reserve submit failed", err);
         let globalErr = document.getElementById('errReserveGlobal');
@@ -1124,9 +1191,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const dropdownGroup = document.getElementById('stationDropdownGroup');
             const manualGroup = document.getElementById('specifyStationGroup');
             if (specifyChk.checked) {
+                selectedStations = [];
+                renderStationTags();
+                if (reserveDom.stationInput) reserveDom.stationInput.value = '';
+                document.getElementById('errStation')?.classList.remove('visible');
+                document.getElementById('stationCombobox')?.classList.remove('input-error');
                 dropdownGroup?.classList.add('hidden');
                 manualGroup?.classList.remove('hidden');
             } else {
+                if (reserveDom.stationManual) reserveDom.stationManual.value = '';
+                document.getElementById('errStationManual')?.classList.remove('visible');
+                reserveDom.stationManual?.classList.remove('input-error');
                 dropdownGroup?.classList.remove('hidden');
                 manualGroup?.classList.add('hidden');
             }
