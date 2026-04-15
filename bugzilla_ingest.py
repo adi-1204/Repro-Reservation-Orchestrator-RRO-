@@ -659,20 +659,19 @@ class BugzillaIngester:
             try:
                 print(f"\n[Ingest] Processing bug {bug_id_str}...", flush=True)
 
-                existing = Bug.query.filter_by(bug_code=bug_id_str).first()
+                existing = Bug.query.filter_by(bug_id=bug_id_str).first()
                 is_new = existing is None
                 bug = existing if not is_new else Bug()
 
                 # Core fields — status is always "running" for REPRODUCE bugs
-                bug.bug_code      = bug_id_str
+                bug.bug_id      = bug_id_str
                 bug.bug_name      = (raw.get("summary") or "")[:255]
                 bug.priority      = _map_priority(raw.get("priority"))
                 bug.status        = "running"   # REPRODUCE → running
                 bug.bug_type      = "repro"     # REPRODUCE → repro table
-                bug.summary       = (raw.get("component") or "")[:255]
+                bug.component       = (raw.get("component") or "")[:255]
                 # Always use the workgroup's release_version so cascade delete
                 # in delete_workgroup() can find these bugs reliably.
-                bug.resource_group = self.release_version[:100]
                 bug.workgroup_id = workgroup_id
 
                 assignee = (raw.get("assigned_to") or "").lower()
@@ -696,7 +695,7 @@ class BugzillaIngester:
                 if not is_new:
                     existing_comment_ids = {
                         c.comment_bugzilla_id
-                        for c in BugComment.query.filter_by(bug_id=bug.bug_code).all()
+                        for c in BugComment.query.filter_by(bug_id=bug.bug_id).all()
                         if c.comment_bugzilla_id is not None
                     }
 
@@ -705,7 +704,7 @@ class BugzillaIngester:
                     if c_bugz_id in existing_comment_ids:
                         continue
                     db_session.add(BugComment(
-                        bug_id=bug.bug_code,
+                        bug_id=bug.bug_id,
                         creator=c.get("creator", ""),
                         text=c.get("text", ""),
                     ))
@@ -738,7 +737,7 @@ class BugzillaIngester:
 
                 # 6d. Upsert BugTest rows (Minimalist)
                 if not is_new:
-                    BugTest.query.filter_by(bug_id=bug.bug_code).delete()
+                    BugTest.query.filter_by(bug_id=bug.bug_id).delete()
 
                 merged_tests: dict = {}
                 for c in raw_comments:
@@ -765,15 +764,15 @@ class BugzillaIngester:
                         }
 
                 for fields in merged_tests.values():
-                    db_session.add(BugTest(bug_id=bug.bug_code, **fields))
+                    db_session.add(BugTest(bug_id=bug.bug_id, **fields))
 
                 # 6e. Upsert BugStation rows
                 if not is_new:
-                    BugStation.query.filter_by(bug_id=bug.bug_code).delete()
+                    BugStation.query.filter_by(bug_id=bug.bug_id).delete()
                 for station_name in metadata["test_rings"]:
                     if station_name:
                         db_session.add(BugStation(
-                            bug_id=bug.bug_code,
+                            bug_id=bug.bug_id,
                             station_name=station_name[:100],
                         ))
 
@@ -799,9 +798,9 @@ class BugzillaIngester:
                             )
                             parsed = _parse_chathpe_response(response_text)
 
-                            existing_ml = MLAnalysis.query.filter_by(bug_id=bug.bug_code).first()
+                            existing_ml = MLAnalysis.query.filter_by(bug_id=bug.bug_id).first()
                             if existing_ml is None:
-                                existing_ml = MLAnalysis(bug_id=bug.bug_code)
+                                existing_ml = MLAnalysis(bug_id=bug.bug_id)
                                 db_session.add(existing_ml)
                             existing_ml.repro_actions   = parsed["repro_actions"]
                             existing_ml.config_changes  = parsed["config_changes"]
@@ -881,7 +880,7 @@ def retry_pending_analysis(db_session, chathpe_creds):
 
     pending = [
         b for b in repro_bugs
-        if _is_bad_repro_actions(MLAnalysis.query.filter_by(bug_id=b.bug_code).first())
+        if _is_bad_repro_actions(MLAnalysis.query.filter_by(bug_id=b.bug_id).first())
     ]
 
     if not pending:
@@ -923,7 +922,7 @@ def retry_pending_analysis(db_session, chathpe_creds):
     for bug in pending:
         try:
             # Load stored comments from DB
-            stored = BugComment.query.filter_by(bug_id=bug.bug_code).all()
+            stored = BugComment.query.filter_by(bug_id=bug.bug_id).all()
             raw_comments = [{"text": c.text} for c in stored]
             if not raw_comments:
                 print(f"[Retry] Bug {bug.bug_code}: no comments in DB — skipping.", flush=True)
@@ -948,9 +947,9 @@ def retry_pending_analysis(db_session, chathpe_creds):
             )
             parsed = _parse_chathpe_response(response_text)
 
-            ml = MLAnalysis.query.filter_by(bug_id=bug.bug_code).first()
+            ml = MLAnalysis.query.filter_by(bug_id=bug.bug_id).first()
             if ml is None:
-                ml = MLAnalysis(bug_id=bug.bug_code)
+                ml = MLAnalysis(bug_id=bug.bug_id)
                 db_session.add(ml)
             ml.repro_actions   = parsed["repro_actions"]
             ml.config_changes  = parsed["config_changes"]

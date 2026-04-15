@@ -113,13 +113,14 @@ def get_bugs():
     for b in bugs:
 
         data = {
-            "id": b.bug_code,
+            "id": b.bug_id,
             "bug_name": b.bug_name,
             "engineer_name": (
                 f"{b.engineer.first_name} {b.engineer.last_name or ''}".strip()
                 if b.engineer else "Unassigned"
             ),
             "priority": b.priority,
+            "status": b.status,
             "engineer": {
                 "name": b.engineer.full_name if b.engineer else "Unassigned",
                 "initials": (
@@ -128,11 +129,9 @@ def get_bugs():
                 ),
                 "color": "#7c3aed"
             },
-            "summary": b.summary or "",
+            "component": b.component or "",
             "tests": [t.test_name for t in b.tests],
             "stations": [s.station_name for s in b.stations],
-            "config": b.station_config,
-            "resourceGroup": b.resource_group,
             "build": b.build_id
         }
 
@@ -186,7 +185,7 @@ def bug_stats():
         total = query.count()
         repro = query.filter(Bug.bug_type == "repro").count()
         test = query.filter(Bug.bug_type == "test").count()
-        pending = query.filter(Bug.status == "pending").count()
+        pending = query.filter(or_(Bug.bug_type == "repro", Bug.status == "pending")).count()
         running = query.filter(Bug.status == "running").count()
         completed = query.filter(Bug.status == "completed").count()
 
@@ -214,7 +213,7 @@ def bug_stats():
     total = query.count()
     repro = query.filter(Bug.bug_type == "repro").count()
     test = query.filter(Bug.bug_type == "test").count()
-    pending = query.filter(Bug.status == "pending").count()
+    pending = query.filter(or_(Bug.bug_type == "repro", Bug.status == "pending")).count()
     running = query.filter(Bug.status == "running").count()
     completed = query.filter(Bug.status == "completed").count()
 
@@ -283,20 +282,20 @@ def search_bugs():
     suggestions = []
     seen = set()
 
-    def add_suggestion(type_label, value, bug_code):
+    def add_suggestion(type_label, value, bug_id):
         key = (type_label, value)
         if key not in seen and len(suggestions) < MAX_SUGGESTIONS:
             seen.add(key)
             suggestions.append({
                 "type": type_label,
                 "value": value,
-                "bug_code": bug_code
+                "bug_id": bug_id
             })
 
     # 1) Bug ID matches
-    bug_id_matches = base_query.filter(Bug.bug_code.ilike(pattern)).limit(MAX_SUGGESTIONS).all()
+    bug_id_matches = base_query.filter(Bug.bug_id.ilike(pattern)).limit(MAX_SUGGESTIONS).all()
     for b in bug_id_matches:
-        add_suggestion("Bug ID", b.bug_code, b.bug_code)
+        add_suggestion("Bug ID", b.bug_id, b.bug_id)
 
     # 2) Engineer name matches
     if len(suggestions) < MAX_SUGGESTIONS:
@@ -309,27 +308,27 @@ def search_bugs():
         ).limit(MAX_SUGGESTIONS).all()
         for b in engineer_bugs:
             if b.engineer:
-                add_suggestion("Engineer", b.engineer.full_name, b.bug_code)
+                add_suggestion("Engineer", b.engineer.full_name, b.bug_id)
 
     # 3) Test name matches
     if len(suggestions) < MAX_SUGGESTIONS:
-        test_bugs = base_query.join(BugTest, Bug.bug_code == BugTest.bug_id).filter(
+        test_bugs = base_query.join(BugTest, Bug.bug_id == BugTest.bug_id).filter(
             BugTest.test_name.ilike(pattern)
         ).limit(MAX_SUGGESTIONS).all()
         for b in test_bugs:
             for t in b.tests:
                 if q.lower() in t.test_name.lower():
-                    add_suggestion("Test", t.test_name, b.bug_code)
+                    add_suggestion("Test", t.test_name, b.bug_id)
 
     # 4) Station name matches
     if len(suggestions) < MAX_SUGGESTIONS:
-        station_bugs = base_query.join(BugStation, Bug.bug_code == BugStation.bug_id).filter(
+        station_bugs = base_query.join(BugStation, Bug.bug_id == BugStation.bug_id).filter(
             BugStation.station_name.ilike(pattern)
         ).limit(MAX_SUGGESTIONS).all()
         for b in station_bugs:
             for s in b.stations:
                 if q.lower() in s.station_name.lower():
-                    add_suggestion("Station", s.station_name, b.bug_code)
+                    add_suggestion("Station", s.station_name, b.bug_id)
 
     return jsonify(suggestions)
 
@@ -345,14 +344,14 @@ def get_bug_tests(bug_id):
     if not user_id:
         return jsonify({"error": "Not logged in"}), 401
 
-    bug_record = Bug.query.filter_by(bug_code=bug_id).first()
+    bug_record = Bug.query.filter_by(bug_id=bug_id).first()
     if not bug_record:
         return jsonify({"error": "Bug not found"}), 404
 
-    bug_tests = BugTest.query.filter_by(bug_id=bug_record.bug_code).all()
+    bug_tests = BugTest.query.filter_by(bug_id=bug_record.bug_id).all()
 
     return jsonify({
-        "bug_code": bug_record.bug_code,
+        "bug_id": bug_record.bug_id,
         "bug_name": bug_record.bug_name,
         "tests": [
             {
@@ -509,14 +508,14 @@ def get_bug_analysis(bug_id):
     if not user_id:
         return jsonify({"error": "Not logged in"}), 401
 
-    bug_record = Bug.query.filter_by(bug_code=bug_id).first()
+    bug_record = Bug.query.filter_by(bug_id=bug_id).first()
     if not bug_record:
         return jsonify({"error": "Bug not found"}), 404
 
-    analysis = MLAnalysis.query.filter_by(bug_id=bug_record.bug_code).first()
+    analysis = MLAnalysis.query.filter_by(bug_id=bug_record.bug_id).first()
 
     return jsonify({
-        "bug_code": bug_record.bug_code,
+        "bug_id": bug_record.bug_id,
         "analysis": {
             "repro_actions": analysis.repro_actions,
             "config_changes": analysis.config_changes,
@@ -538,14 +537,14 @@ def get_bug_comments(bug_id):
     if not user_id:
         return jsonify({"error": "Not logged in"}), 401
 
-    bug_record = Bug.query.filter_by(bug_code=bug_id).first()
+    bug_record = Bug.query.filter_by(bug_id=bug_id).first()
     if not bug_record:
         return jsonify({"error": "Bug not found"}), 404
 
-    comments = BugComment.query.filter_by(bug_id=bug_record.bug_code).order_by(BugComment.id.asc()).all()
+    comments = BugComment.query.filter_by(bug_id=bug_record.bug_id).order_by(BugComment.id.asc()).all()
 
     return jsonify({
-        "bug_code": bug_record.bug_code,
+        "bug_id": bug_record.bug_id,
         "comments": [
             {
                 "id": comment.id,

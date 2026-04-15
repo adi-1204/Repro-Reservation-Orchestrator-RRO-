@@ -70,19 +70,27 @@ CREATE TABLE Bugs (
     bug_type ENUM('repro', 'test') NOT NULL,
     engineer_id INT,
     workgroup_id INT NULL,
-    summary VARCHAR(255),
-    station_config VARCHAR(100),
-    resource_group VARCHAR(100),
+    build_id VARCHAR(100) NOT NULL,
     status ENUM('pending', 'running', 'scheduled', 'completed') DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    product VARCHAR(100),
+    component VARCHAR(100),
+    reporter VARCHAR(100),
+    severity ENUM('trivial', 'normal', 'major', 'critical', 'enhancement') DEFAULT 'normal',
+    whiteboard TEXT,
+    developer_progress VARCHAR(255),
     FOREIGN KEY (engineer_id) REFERENCES Users(ID) ON DELETE SET NULL,
+    FOREIGN KEY (build_id) REFERENCES Builds.version ON DELETE CASCADE,
     FOREIGN KEY (workgroup_id) REFERENCES Workgroup_Schema(ID) ON DELETE SET NULL,
     INDEX idx_bug_code (bug_code),
     INDEX idx_engineer (engineer_id),
     INDEX idx_priority (priority),
     INDEX idx_status (status),
     INDEX idx_bug_type (bug_type),
-    INDEX idx_bug_workgroup (workgroup_id)
+    INDEX idx_bug_workgroup (workgroup_id),
+    INDEX idx_product (product),
+    INDEX idx_component (component),
+    INDEX idx_severity (severity)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -158,23 +166,6 @@ CREATE TABLE ML_Analysis (
     FOREIGN KEY (bug_id) REFERENCES Bugs(id) ON DELETE CASCADE,
     INDEX idx_bug (bug_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ============================================
--- Add Metadata Columns to Bug_Tests Table
--- ============================================
-ALTER TABLE Bug_Tests
-    ADD COLUMN test_plan_name VARCHAR(200) NULL,
-    ADD COLUMN test_ring_name VARCHAR(100) NULL,
-    ADD COLUMN execution_start DATETIME NULL,
-    ADD COLUMN execution_end DATETIME NULL,
-    ADD COLUMN controller_types VARCHAR(100) NULL,
-    ADD COLUMN number_of_nodes INT NULL,
-    ADD COLUMN failure_type VARCHAR(50) NULL,
-    ADD COLUMN build_version VARCHAR(50) NULL,
-    ADD COLUMN nfs_path VARCHAR(500) NULL,
-    ADD COLUMN odin_link VARCHAR(500) NULL,
-    ADD COLUMN signature VARCHAR(500) NULL,
-    ADD COLUMN station_name VARCHAR(100) NULL;
 
 -- ============================================
 -- Reservations_By_Name Table

@@ -95,7 +95,7 @@ function renderRunHistory() {
         return `
         <tr>
             <td>#${esc(run.id)}</td>
-            <td>${esc(run.bug_code || '—')}</td>
+            <td>${esc(run.bug_id || '—')}</td>
             <td class="run-history-ellipsis" title="${esc(bugName)}">${esc(bugName)}</td>
             <td class="run-history-ellipsis" title="${esc(testName)}">${esc(testName)}</td>
             <td class="run-history-ellipsis" title="${esc(provisionSetup)}">${esc(provisionSetup)}</td>
@@ -149,7 +149,7 @@ function renderBugDropdown(filtered, query) {
         dd.innerHTML = `<div class="run-dropdown-empty">No bugs found for "${esc(query)}"</div>`;
     } else {
         dd.innerHTML = filtered.map(b => `
-            <div class="run-dropdown-item" data-bug-code="${esc(b.id)}" data-bug-name="${esc(b.bug_name || '')}">
+            <div class="run-dropdown-item" data-bug-id="${esc(b.id)}" data-bug-name="${esc(b.bug_name || '')}">
                 <span><strong>${esc(b.id)}</strong> — ${esc(b.bug_name || 'Unnamed')}</span>
             </div>
         `).join('');
@@ -162,16 +162,16 @@ function renderBugDropdown(filtered, query) {
 
 function selectBug(item) {
     state.bugToRepro = {
-        bug_code: item.dataset.bugCode,
+        bug_id: item.dataset.bugId,
         bug_name: item.dataset.bugName,
     };
-    document.getElementById('bugReproInput').value = item.dataset.bugCode;
+    document.getElementById('bugReproInput').value = item.dataset.bugId;
     document.getElementById('bugReproDropdown').classList.add('hidden');
     document.getElementById('errBugRepro').classList.add('hidden');
 
     state.selectedTests = [];
     renderSelectedTags();
-    loadBugTests(item.dataset.bugCode);
+    loadBugTests(item.dataset.bugId);
 }
 
 async function loadBugTests(bugCode) {
@@ -501,7 +501,7 @@ function buildRunPayloadFromActiveTab() {
     if (!activeFields) return null;
 
     return {
-        bug_id: String(state.bugToRepro.bug_code || '').trim(),
+        bug_id: String(state.bugToRepro.bug_id || '').trim(),
         run_mode: state.runMode,
         test_name: state.selectedTests,
         run_type: activeFields.run_type,

@@ -323,7 +323,7 @@ function generateBugsTableRows(bugs) {
 
         return `
         <tr class="bug-row"
-            data-bug-code="${escapeHtml(bug.id)}"
+            data-bug-id="${escapeHtml(bug.id)}"
             data-bug-name="${escapeHtml(bug.bug_name || '—')}"
             data-priority="${escapeHtml(bug.priority || 'P2')}"
             data-engineer-name="${escapeHtml(bug.engineer_name || 'Unassigned')}"
@@ -378,7 +378,6 @@ function buildTestsTableHtml(testsPayload) {
             <tr>
                 <td>${escapeHtml(t?.test_name || '—')}</td>
                 <td>${escapeHtml(t?.station_name || '—')}</td>
-                <td>${escapeHtml(t?.build_version || '—')}</td>
                 <td>${escapeHtml(t?.configuration || '—')}</td>
             </tr>
         `).join('')
@@ -397,7 +396,6 @@ function buildTestsTableHtml(testsPayload) {
                 <tr>
                     <th>Test</th>
                     <th>Station Name</th>
-                    <th>Build</th>
                     <th>Configuration</th>
                 </tr>
             </thead>
@@ -448,9 +446,9 @@ function buildMlAnalysisSectionHtml(analysisPayload) {
     `;
 }
 
-function generateExpansionHtml(bugCode, testsPayload, analysisPayload) {
+function generateExpansionHtml(bugId, testsPayload, analysisPayload) {
     return `
-        <tr class="expansion-row" data-expansion-for="${escapeHtml(bugCode)}">
+        <tr class="expansion-row" data-expansion-for="${escapeHtml(bugId)}">
             <td colspan="6">
                 ${buildTestsTableHtml(testsPayload)}
                 ${buildMlAnalysisSectionHtml(analysisPayload)}
@@ -460,14 +458,14 @@ function generateExpansionHtml(bugCode, testsPayload, analysisPayload) {
 }
 
 async function toggleBugExpansion(row) {
-    const bugCode = row.dataset.bugCode;
+    const bugId = row.dataset.bugId;
     const testsTrigger = row.querySelector('.tests-trigger');
     const chevron = row.querySelector('.expand-chevron');
 
     if (row.dataset.expanded === 'true') {
         const existingRows = Array.from(row.parentElement.querySelectorAll('tr[data-expansion-for]'));
         existingRows
-            .filter(expansionRow => expansionRow.dataset.expansionFor === bugCode)
+            .filter(expansionRow => expansionRow.dataset.expansionFor === bugId)
             .forEach(expansionRow => expansionRow.remove());
 
         row.dataset.expanded = 'false';
@@ -481,15 +479,15 @@ async function toggleBugExpansion(row) {
     if (chevron) chevron.classList.add('open');
 
     const [testsPayload, analysisPayload] = await Promise.all([
-        apiFetch('/api/bugs/' + bugCode + '/tests'),
-        apiFetch('/api/bugs/' + bugCode + '/analysis')
+        apiFetch('/api/bugs/' + bugId + '/tests'),
+        apiFetch('/api/bugs/' + bugId + '/analysis')
     ]);
 
     if (row.dataset.expanded !== 'true') {
         return;
     }
 
-    const expansionHtml = generateExpansionHtml(bugCode, testsPayload, analysisPayload);
+    const expansionHtml = generateExpansionHtml(bugId, testsPayload, analysisPayload);
     row.insertAdjacentHTML('afterend', expansionHtml);
 }
 
@@ -554,7 +552,7 @@ function renderSearchDropdown(suggestions, query) {
         <div class="search-dropdown-item"
              data-type="${escapeHtml(s.type)}"
              data-value="${escapeHtml(s.value)}"
-             data-bugcode="${escapeHtml(s.bug_code)}">
+             data-bugid="${escapeHtml(s.bug_id)}">
             <span class="search-dropdown-tag ${getTagClass(s.type)}">${escapeHtml(s.type)}</span>
             <span class="search-dropdown-value">${highlightMatch(s.value, query)}</span>
         </div>

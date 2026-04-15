@@ -22,7 +22,7 @@ def _serialize_run_entry(run):
     bug = run.bug
     return {
         "id": run.id,
-        "bug_code": bug.bug_code if bug else None,
+        "bug_id": bug.bug_id if bug else None,
         "bug_name": bug.bug_name if bug else None,
         "test_name": run.test_name,
         "run_mode": run.run_mode,
@@ -78,8 +78,8 @@ def submit_run():
     if run_mode not in {"run_tests", "config_and_execute"}:
         return jsonify({"success": False, "error": "Invalid run_mode"}), 400
 
-    bug_code = str(data.get("bug_id", "")).strip()
-    bug = Bug.query.filter_by(bug_code=bug_code).first()
+    bug_id_val = str(data.get("bug_id", "")).strip()
+    bug = Bug.query.filter_by(bug_id=bug_id_val).first()
     if not bug:
         return jsonify({"success": False, "error": "Bug not found"}), 404
 
@@ -103,7 +103,7 @@ def submit_run():
         test_name_value = ", ".join(str(x).strip() for x in test_name_value if str(x).strip())
 
     run_parameter = RunParameter(
-        bug_id=bug.bug_code,
+        bug_id=bug.bug_id,
         run_mode=run_mode,
         test_name=(test_name_value or None),
         run_type=run_type,

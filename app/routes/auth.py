@@ -84,6 +84,13 @@ def register():
             )
 
             db.session.add(new_user)
+            db.session.flush() # flush to get new_user.id
+            
+            # Map bugs to this newly registered engineer
+            if role == 'Engineer':
+                from app.models.bug import Bug
+                Bug.query.filter_by(assignee_email=email).update({"engineer_id": new_user.id})
+                
             db.session.commit()
 
             flash("Account created successfully! Please sign in.", "success")

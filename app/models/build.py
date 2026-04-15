@@ -4,8 +4,7 @@ class Build(db.Model):
     __tablename__ = "Builds"
 
     version = db.Column(db.String(100), primary_key=True)
-    bug_id = db.Column(db.String(100), db.ForeignKey("Bugs.bug_code", ondelete="SET NULL"))
-    
+
     # Relationships
     bugs = db.relationship(
         "Bug",
@@ -19,12 +18,6 @@ class Build(db.Model):
         "Workgroup",
         back_populates="build_record",
         cascade="all, delete-orphan"
-    )
-
-    associated_bug = db.relationship(
-        "Bug",
-        foreign_keys=[bug_id],
-        uselist=False
     )
 
     def __init__(self, version):

@@ -9,7 +9,7 @@ class BugStation(db.Model):
 
     bug_id = db.Column(
         db.String(100),
-        db.ForeignKey("Bugs.bug_code", ondelete="CASCADE")
+        db.ForeignKey("Bugs.bug_id", ondelete="CASCADE")
     )
 
     station_name = db.Column(db.String(100))

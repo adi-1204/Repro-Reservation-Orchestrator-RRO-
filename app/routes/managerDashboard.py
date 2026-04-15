@@ -325,7 +325,7 @@ def delete_workgroup(id):
 
     # Step 1 - get bug IDs belonging to this workgroup only
     bugs = Bug.query.filter(Bug.workgroup_id == id).all()
-    bug_ids = [b.bug_code for b in bugs]
+    bug_ids = [b.bug_id for b in bugs]
 
     # Step 2 - delete child records scoped to those bug IDs only
     if bug_ids:

@@ -27,13 +27,13 @@ import chathpe_client
 
 def build_prompt(bug, comments, test_name):
     lines = [
-        f"Bug {bug.bug_code} Analysis Request",
+        f"Bug {bug.bug_id} Analysis Request",
         "",
         "You are analyzing a software bug report. Based on the following bug details and engineer comments, provide a structured analysis.",
         "",
-        f"Bug ID: {bug.bug_code}",
+        f"Bug ID: {bug.bug_id}",
         f"Priority: {bug.priority}",
-        f"Component: {bug.summary or ''}",
+        f"Component: {bug.bug_name or ''}",
         f"Test Name: {test_name}",
         "",
         "Engineer Comments:",
@@ -180,25 +180,25 @@ def generate(force=False, flask_app=None):
             sys.exit(1)
 
         try:
-            bugs = Bug.query.order_by(Bug.id.asc()).all()
+            bugs = Bug.query.order_by(Bug.bug_id.asc()).all()
 
             for bug in bugs:
-                existing = MLAnalysis.query.filter_by(bug_id=bug.id).first()
+                existing = MLAnalysis.query.filter_by(bug_id=bug.bug_id).first()
                 has_summary = existing and existing.summary is not None
 
                 if not force and has_summary:
-                    print(f"[{bug.bug_code}] Skipping - already analysed (use --force to regenerate)")
+                    print(f"[{bug.bug_id}] Skipping - already analysed (use --force to regenerate)")
                     skipped += 1
                     continue
 
                 comments = (
                     BugComment.query
-                    .filter_by(bug_id=bug.id)
-                    .order_by(BugComment.comment_bugzilla_id.asc(), BugComment.id.asc())
+                    .filter_by(bug_id=bug.bug_id)
+                    .order_by(BugComment.creation_time.asc(), BugComment.id.asc())
                     .all()
                 )
 
-                first_test = BugTest.query.filter_by(bug_id=bug.id).first()
+                first_test = BugTest.query.filter_by(bug_id=bug.bug_id).first()
                 test_name = (first_test.test_name or "N/A") if first_test else "N/A"
 
                 prompt = build_prompt(bug, comments, test_name)
@@ -214,12 +214,12 @@ def generate(force=False, flask_app=None):
                     )
                     parsed = parse_analysis_fields(message)
                 except Exception as exc:
-                    print(f"[{bug.bug_code}] Error - ChatHPE call failed: {exc}")
+                    print(f"[{bug.bug_id}] Error - ChatHPE call failed: {exc}")
                     errors += 1
                     continue
 
                 if existing is None:
-                    existing = MLAnalysis(bug_id=bug.id)
+                    existing = MLAnalysis(bug_id=bug.bug_id)
                     db.session.add(existing)
 
                 existing.repro_actions   = parsed["repro_actions"]
@@ -232,7 +232,7 @@ def generate(force=False, flask_app=None):
 
                 analyzed += 1
                 pending_commits += 1
-                print(f"[{bug.bug_code}] ChatHPE analysis generated.")
+                print(f"[{bug.bug_id}] ChatHPE analysis generated.")
 
                 if pending_commits >= 5:
                     db.session.commit()

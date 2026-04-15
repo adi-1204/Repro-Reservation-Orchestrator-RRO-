@@ -16,6 +16,14 @@ def init_database():
     app = create_app()
     
     with app.app_context():
+        print("!" * 60)
+        print("  WARNING: This will WIPE all data in THE DATABASE.")
+        print("!" * 60)
+        confirm = input("Are you absolutely sure? (type 'yes' to proceed): ")
+        if confirm.lower() != 'yes':
+            print("Initialization cancelled.")
+            return
+
         print("Dropping all existing tables...")
         db.drop_all()
         

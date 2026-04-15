@@ -4,7 +4,7 @@ class Bug(db.Model):
 
     __tablename__ = "Bugs"
 
-    bug_code = db.Column(db.String(100), primary_key=True)
+    bug_id = db.Column(db.String(100), primary_key=True)
     bug_name = db.Column(db.String(255))
 
     bug_type = db.Column(
@@ -23,16 +23,27 @@ class Bug(db.Model):
         server_default='pending'
     )
 
-    summary = db.Column(db.String(255))
     build_id = db.Column(db.String(100), db.ForeignKey("Builds.version", ondelete="CASCADE"), nullable=False)
 
-    station_config = db.Column(db.String(100))
-    resource_group = db.Column(db.String(100))
+    # Bug metadata from Bugzilla
+    product = db.Column(db.String(100))
+    component = db.Column(db.String(100))
+    reporter = db.Column(db.String(100))
+    
+    severity = db.Column(
+        db.Enum('trivial', 'normal', 'major', 'critical', 'enhancement'),
+        default='normal'
+    )
+    
+    whiteboard = db.Column(db.Text)
+    developer_progress = db.Column(db.String(255))
 
     engineer_id = db.Column(
         db.Integer,
         db.ForeignKey("Users.ID", ondelete="SET NULL")
     )
+    
+    assignee_email = db.Column(db.String(100))
 
     workgroup_id = db.Column(
         db.Integer,
