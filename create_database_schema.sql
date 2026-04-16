@@ -113,6 +113,7 @@ CREATE TABLE Run_Parameters (
     bug_id INT NOT NULL,
     run_mode ENUM('run_tests', 'config_and_execute') NOT NULL,
     test_name VARCHAR(200),
+    station_name VARCHAR(500),
     run_type ENUM('quick', 'comprehensive') NOT NULL,
     workflow VARCHAR(200),
     run_count INT,

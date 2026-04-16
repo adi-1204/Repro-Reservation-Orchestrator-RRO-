@@ -8,6 +8,7 @@ from app.models.bug_tests import BugTest
 from app.models.bug_stations import BugStation
 from app.models.bug_comments import BugComment
 from app.models.ml_analysis import MLAnalysis
+from app.models.build import Build
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
 from app.auth_utils import (
@@ -31,6 +32,13 @@ manager = Blueprint("manager", __name__)
 # ---------------------------------------------------------------------------
 _ingest_jobs: dict = {}
 _ingest_jobs_lock = threading.Lock()
+
+
+def _ensure_build(version):
+    """Create the build row needed by workgroup and bug foreign keys."""
+    build = Build.query.get(version)
+    if build is None:
+        db.session.add(Build(version=version))
 
 
 def _run_ingestion_thread(app, workgroup_id, release_version):
@@ -181,6 +189,8 @@ def create_workgroup():
         return jsonify({"error": "Workgroup name already exists. Please choose a unique name."}), 409
 
     try:
+        _ensure_build(release_version)
+
         wg = Workgroup(
             name=name,
             release_version=release_version,
@@ -266,6 +276,7 @@ def update_workgroup(id):
             return jsonify({"error": "Release version is required."}), 400
         if wg.release_version != release_version:
             version_changed = True
+            _ensure_build(release_version)
         wg.release_version = release_version
     if "is_completed" in data:
         wg.status = "Completed" if data["is_completed"] else "Active"

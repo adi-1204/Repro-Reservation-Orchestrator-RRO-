@@ -340,6 +340,7 @@ def search_bugs():
 def get_bug_tests(bug_id):
 
     user_id = get_current_user_id()
+    role = get_current_role()
 
     if not user_id:
         return jsonify({"error": "Not logged in"}), 401
@@ -347,6 +348,8 @@ def get_bug_tests(bug_id):
     bug_record = Bug.query.filter_by(bug_id=bug_id).first()
     if not bug_record:
         return jsonify({"error": "Bug not found"}), 404
+    if role == "Engineer" and bug_record.engineer_id != user_id:
+        return jsonify({"error": "You can view tests only for bugs assigned to you."}), 403
 
     bug_tests = BugTest.query.filter_by(bug_id=bug_record.bug_id).all()
 

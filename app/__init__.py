@@ -41,7 +41,7 @@ def _start_analysis_retry_scheduler(app):
     print("[Retry Scheduler] Started — will retry pending analysis every 30 min.", flush=True)
 
 
-def create_app():
+def create_app(start_scheduler=True):
     flask_app = Flask(__name__)
     flask_app.config.from_object(Config)
 
@@ -63,6 +63,7 @@ def create_app():
     flask_app.register_blueprint(run_bp)
 
     # Start background ML analysis retry scheduler (30-min interval)
-    _start_analysis_retry_scheduler(flask_app)
+    if start_scheduler:
+        _start_analysis_retry_scheduler(flask_app)
 
     return flask_app

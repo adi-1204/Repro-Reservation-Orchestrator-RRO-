@@ -6,7 +6,7 @@ class Workgroup(db.Model):
 
     id = db.Column("ID", db.Integer, primary_key=True, autoincrement=True)
     name = db.Column("Name", db.String(100))
-    release_version = db.Column("Release_Version", db.String(100), db.ForeignKey("Builds.version", ondelete="SET NULL"), nullable=False)
+    release_version = db.Column("Release_Version", db.String(100), db.ForeignKey("Builds.version"), nullable=False)
 
     status = db.Column(
         "Status",

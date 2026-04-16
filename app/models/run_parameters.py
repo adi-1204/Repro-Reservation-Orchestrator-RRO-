@@ -19,6 +19,7 @@ class RunParameter(db.Model):
     )
 
     test_name = db.Column(db.String(200))
+    station_name = db.Column(db.String(500))
     run_type = db.Column(
         db.Enum('quick', 'comprehensive'),
         nullable=False

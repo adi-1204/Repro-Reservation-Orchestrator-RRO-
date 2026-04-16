@@ -18,6 +18,19 @@ from app.models.run_parameters import RunParameter
 run_bp = Blueprint("run", __name__)
 
 
+def _normalize_selection(value):
+    if value is None:
+        return ""
+
+    if isinstance(value, list):
+        parts = value
+    else:
+        parts = str(value).split(",")
+
+    cleaned = [str(part).strip() for part in parts if str(part).strip()]
+    return ", ".join(sorted(set(cleaned), key=str.casefold))
+
+
 def _serialize_run_entry(run):
     bug = run.bug
     return {
@@ -25,6 +38,7 @@ def _serialize_run_entry(run):
         "bug_id": bug.bug_id if bug else None,
         "bug_name": bug.bug_name if bug else None,
         "test_name": run.test_name,
+        "station_name": run.station_name,
         "run_mode": run.run_mode,
         "run_type": run.run_type,
         "workflow": run.workflow,
@@ -60,6 +74,8 @@ def submit_run():
     current_user_id = get_current_user_id()
     if not current_user_id:
         return jsonify({"success": False, "error": "Not logged in"}), 401
+    if get_current_role() != "Engineer":
+        return jsonify({"success": False, "error": "Only engineers can submit runs"}), 403
 
     data = request.get_json(silent=True) or {}
 
@@ -82,6 +98,11 @@ def submit_run():
     bug = Bug.query.filter_by(bug_id=bug_id_val).first()
     if not bug:
         return jsonify({"success": False, "error": "Bug not found"}), 404
+    if bug.engineer_id != current_user_id:
+        return jsonify({
+            "success": False,
+            "error": "You can run only bugs assigned to you."
+        }), 403
 
     run_count = data.get("run_count")
     if run_count in (None, ""):
@@ -98,14 +119,38 @@ def submit_run():
 
     do_checkout_update = bool(data.get("do_checkout_update", False))
 
-    test_name_value = data.get("test_name")
-    if isinstance(test_name_value, list):
-        test_name_value = ", ".join(str(x).strip() for x in test_name_value if str(x).strip())
+    test_name_value = _normalize_selection(data.get("test_name"))
+    if not test_name_value:
+        return jsonify({"success": False, "error": "Please select at least one test"}), 400
+
+    station_name_value = _normalize_selection(data.get("station_name"))
+    if not station_name_value:
+        return jsonify({"success": False, "error": "Please select at least one station"}), 400
+    if "," in station_name_value:
+        return jsonify({"success": False, "error": "Please select only one station"}), 400
+
+    runs_for_bug_and_station = RunParameter.query.filter_by(
+        bug_id=bug.bug_id,
+        station_name=station_name_value,
+    ).all()
+    duplicate_run = next(
+        (
+            run for run in runs_for_bug_and_station
+            if _normalize_selection(run.test_name) == test_name_value
+        ),
+        None,
+    )
+    if duplicate_run:
+        return jsonify({
+            "success": False,
+            "error": "Run already exists for this bug, test, and station. Choose a different station or test."
+        }), 409
 
     run_parameter = RunParameter(
         bug_id=bug.bug_id,
         run_mode=run_mode,
         test_name=(test_name_value or None),
+        station_name=(station_name_value or None),
         run_type=run_type,
         workflow=(data.get("workflow") or None),
         run_count=run_count,

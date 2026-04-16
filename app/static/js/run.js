@@ -10,6 +10,7 @@ const state = {
     runMode: 'run_tests',
     bugToRepro: null,
     selectedTests: [],
+    selectedStation: '',
     runOptionsMode: null,
     qrWorkflow: '',
     qrRunCount: '',
@@ -20,6 +21,8 @@ const state = {
 };
 
 let allSystemTestNames = [];
+let allStationOptions = [];
+let stationOptions = [];
 let bugTests = [];
 let allBugs = [];
 let runHistory = [];
@@ -79,13 +82,14 @@ function renderRunHistory() {
     if (!runHistory.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="12" class="run-history-empty">No run records found yet.</td>
+                <td colspan="13" class="run-history-empty">No run records found yet.</td>
             </tr>
         `;
         return;
     }
 
     tbody.innerHTML = runHistory.map(run => {
+        const stationName = run.station_name || 'No station';
         const isComprehensive = String(run.run_type || '').toLowerCase() === 'comprehensive';
         const provisionSetup = isComprehensive ? (run.provision_setup || '—') : '—';
         const doCheckout = isComprehensive ? (run.do_checkout_update ? 'Yes' : 'No') : '—';
@@ -98,6 +102,7 @@ function renderRunHistory() {
             <td>${esc(run.bug_id || '—')}</td>
             <td class="run-history-ellipsis" title="${esc(bugName)}">${esc(bugName)}</td>
             <td class="run-history-ellipsis" title="${esc(testName)}">${esc(testName)}</td>
+            <td class="run-history-ellipsis" title="${esc(stationName)}">${esc(stationName)}</td>
             <td class="run-history-ellipsis" title="${esc(provisionSetup)}">${esc(provisionSetup)}</td>
             <td>${esc(doCheckout)}</td>
             <td>${esc(run.workflow || '—')}</td>
@@ -116,7 +121,7 @@ async function loadRunHistory() {
     if (tbody) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="12" class="run-history-empty">Loading run history...</td>
+                <td colspan="13" class="run-history-empty">Loading run history...</td>
             </tr>
         `;
     }
@@ -170,15 +175,20 @@ function selectBug(item) {
     document.getElementById('errBugRepro').classList.add('hidden');
 
     state.selectedTests = [];
+    state.selectedStation = '';
+    stationOptions = [];
     renderSelectedTags();
+    renderSelectedStationTags();
     loadBugTests(item.dataset.bugId);
 }
 
 async function loadBugTests(bugCode) {
     bugTests = [];
+    stationOptions = [];
     const data = await apiFetch(`/api/bugs/${bugCode}/tests`);
     if (data && Array.isArray(data.tests)) {
         bugTests = data.tests.map(t => t.test_name).filter(Boolean);
+        stationOptions = [...new Set(data.tests.map(t => t.station_name).filter(Boolean))].sort();
     }
 }
 
@@ -230,8 +240,11 @@ function initBugReproCombobox() {
         if (!input.value.trim()) {
             state.bugToRepro = null;
             bugTests = [];
+            stationOptions = [];
             state.selectedTests = [];
+            state.selectedStation = '';
             renderSelectedTags();
+            renderSelectedStationTags();
         }
     });
 
@@ -250,6 +263,11 @@ async function loadAllBugs() {
     allBugs.forEach(b => {
         if (Array.isArray(b.tests)) allSystemTestNames.push(...b.tests);
     });
+}
+
+async function loadAllStations() {
+    const data = await apiFetch('/api/stations');
+    allStationOptions = Array.isArray(data?.stations) ? data.stations : [];
 }
 
 // ═══════════════════════════════════════════
@@ -371,6 +389,98 @@ function initTestRunCombobox() {
 // ═══════════════════════════════════════════
 // SECTION 3 — Slider toggle
 // ═══════════════════════════════════════════
+let stationDebounce = null;
+
+function getStationOptionsForRun() {
+    return stationOptions.length ? stationOptions : allStationOptions;
+}
+
+function hideAllStationErrors() {
+    ['errStationRun', 'errStationNoBug'].forEach(id =>
+        document.getElementById(id)?.classList.add('hidden')
+    );
+}
+
+function showStationError(id) {
+    hideAllStationErrors();
+    document.getElementById(id)?.classList.remove('hidden');
+    setTimeout(() => document.getElementById(id)?.classList.add('hidden'), 3500);
+}
+
+function renderSelectedStationTags() {
+    const input = document.getElementById('stationRunInput');
+    if (input) input.value = state.selectedStation;
+}
+
+function renderStationDropdown(query = '') {
+    const dd = document.getElementById('stationRunDropdown');
+    if (!dd) return;
+
+    const q = query.trim().toLowerCase();
+    const options = getStationOptionsForRun();
+    const filtered = (q ? options.filter(s => s.toLowerCase().includes(q)) : options).slice(0, 30);
+
+    if (!filtered.length) {
+        dd.innerHTML = '<div class="run-dropdown-empty">No matching stations</div>';
+    } else {
+        dd.innerHTML = filtered.map(station => {
+            const isSelected = state.selectedStation === station;
+            return `
+                <div class="run-dropdown-item ${isSelected ? 'selected' : ''}" data-station="${esc(station)}">
+                    <span>${esc(station)}</span>
+                    ${isSelected ? '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7l4 4 6-6" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    dd.querySelectorAll('.run-dropdown-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const station = item.dataset.station;
+            if (!station) return;
+
+            state.selectedStation = station;
+
+            document.getElementById('stationRunInput').value = station;
+            hideAllStationErrors();
+            renderSelectedStationTags();
+            dd.classList.add('hidden');
+        });
+    });
+
+    dd.classList.remove('hidden');
+}
+
+function initStationRunCombobox() {
+    const input = document.getElementById('stationRunInput');
+    const dd = document.getElementById('stationRunDropdown');
+    const combo = document.getElementById('stationRunCombobox');
+    if (!input || !dd || !combo) return;
+
+    input.addEventListener('focus', () => {
+        if (!state.bugToRepro) { showStationError('errStationNoBug'); return; }
+        renderStationDropdown(input.value);
+    });
+
+    input.addEventListener('input', () => {
+        if (!state.bugToRepro) { showStationError('errStationNoBug'); return; }
+        state.selectedStation = '';
+        clearTimeout(stationDebounce);
+        stationDebounce = setTimeout(() => renderStationDropdown(input.value), 150);
+    });
+
+    combo.addEventListener('click', () => {
+        if (!state.bugToRepro) { showStationError('errStationNoBug'); return; }
+        renderStationDropdown(input.value);
+    });
+
+    document.addEventListener('click', e => {
+        if (!combo.contains(e.target)) {
+            dd.classList.add('hidden');
+        }
+    });
+}
+
 function initSliderToggle() {
     const track = document.getElementById('runSliderTrack');
     const btnQuick = document.getElementById('btnQuickRun');
@@ -504,6 +614,7 @@ function buildRunPayloadFromActiveTab() {
         bug_id: String(state.bugToRepro.bug_id || '').trim(),
         run_mode: state.runMode,
         test_name: state.selectedTests,
+        station_name: state.selectedStation,
         run_type: activeFields.run_type,
         workflow: activeFields.workflow,
         run_count: activeFields.run_count,
@@ -634,6 +745,10 @@ function validateBugAndTests() {
         document.getElementById('errTestRun').classList.remove('hidden');
         ok = false;
     }
+    if (!state.selectedStation) {
+        document.getElementById('errStationRun').classList.remove('hidden');
+        ok = false;
+    }
     return ok;
 }
 
@@ -675,14 +790,20 @@ function resetPage() {
 
     state.bugToRepro = null;
     bugTests = [];
+    stationOptions = [];
     state.selectedTests = [];
+    state.selectedStation = '';
     document.getElementById('bugReproInput').value = '';
     document.getElementById('bugReproDropdown').classList.add('hidden');
     document.getElementById('errBugRepro').classList.add('hidden');
     renderSelectedTags();
+    renderSelectedStationTags();
     document.getElementById('testRunInput').value = '';
     document.getElementById('testRunDropdown').classList.add('hidden');
+    document.getElementById('stationRunInput').value = '';
+    document.getElementById('stationRunDropdown').classList.add('hidden');
     hideAllTestErrors();
+    hideAllStationErrors();
 
     document.getElementById('btnQuickRun').click();
 
@@ -743,11 +864,13 @@ async function initNavbar() {
 window.addEventListener('DOMContentLoaded', async () => {
     await initNavbar();
     await loadAllBugs();
+    await loadAllStations();
     await loadRunHistory();
 
     initRunMode();
     initBugReproCombobox();
     initTestRunCombobox();
+    initStationRunCombobox();
     initSliderToggle();
     initQuickRun();
     initComprehensive();
