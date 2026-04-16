@@ -936,9 +936,12 @@ function renderStationTags() {
 
 /* ── Populate Dropdowns ── */
 async function populateReserveDropdowns() {
-    // Bug IDs from API (Engineer's own bugs)
+    // Bug IDs from API (Engineer's own bugs, scoped to workgroup if active)
     try {
-        const myBugsData = await apiFetch('/api/bugs?my_only=true');
+        const bugsParams = new URLSearchParams();
+        bugsParams.set('my_only', 'true');
+        if (activeWorkgroupId) bugsParams.set('workgroup_id', activeWorkgroupId);
+        const myBugsData = await apiFetch(`/api/bugs?${bugsParams.toString()}`);
         if (myBugsData) {
             allBugOptions = [...(myBugsData.repro || []), ...(myBugsData.test || [])].map(b => ({ id: b.id, name: b.bug_name }));
         } else {
@@ -1110,6 +1113,8 @@ async function handleReserveSubmit() {
         showToast('Reservation submitted successfully!', 'success');
         closeReserveModal();
         await loadReservationsData();
+        // Scroll reservations table into view so engineer sees the update
+        document.getElementById('reservationsBody')?.closest('table')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (err) {
         console.error("Reserve submit failed", err);
         let globalErr = document.getElementById('errReserveGlobal');
