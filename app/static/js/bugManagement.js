@@ -209,7 +209,10 @@ async function loadReservationsData() {
 
     if (!reservationsBody) return;
 
-    const data = await apiFetch('/api/reservations');
+    const reservationsParams = new URLSearchParams();
+    if (activeWorkgroupId) reservationsParams.set('workgroup_id', activeWorkgroupId);
+    const reservationsQs = reservationsParams.toString();
+    const data = await apiFetch(reservationsQs ? `/api/reservations?${reservationsQs}` : '/api/reservations');
     const reservations = Array.isArray(data?.reservations) ? data.reservations : [];
 
     if (!reservations.length) {

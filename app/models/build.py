@@ -13,12 +13,6 @@ class Build(db.Model):
         primaryjoin="Build.version == Bug.build_id",
         foreign_keys="Bug.build_id"
     )
-    
-    workgroups = db.relationship(
-        "Workgroup",
-        back_populates="build_record",
-        cascade="all, delete-orphan"
-    )
 
     def __init__(self, version):
         self.version = version

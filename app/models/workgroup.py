@@ -6,7 +6,7 @@ class Workgroup(db.Model):
 
     id = db.Column("ID", db.Integer, primary_key=True, autoincrement=True)
     name = db.Column("Name", db.String(100))
-    release_version = db.Column("Release_Version", db.String(100), db.ForeignKey("Builds.version", ondelete="SET NULL"), nullable=False)
+    release_version = db.Column("Release_Version", db.String(100), nullable=False)
 
     status = db.Column(
         "Status",
@@ -50,11 +50,6 @@ class Workgroup(db.Model):
         "Bug",
         back_populates="workgroup",
         cascade="all, delete-orphan"
-    )
-
-    build_record = db.relationship(
-        "Build",
-        back_populates="workgroups"
     )
 
     @property

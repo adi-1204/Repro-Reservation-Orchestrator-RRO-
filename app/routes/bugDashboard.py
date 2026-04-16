@@ -185,7 +185,11 @@ def bug_stats():
         total = query.count()
         repro = query.filter(Bug.bug_type == "repro").count()
         test = query.filter(Bug.bug_type == "test").count()
-        pending = query.filter(or_(Bug.bug_type == "repro", Bug.status == "pending")).count()
+        pending = query.filter(
+            Bug.bug_type == "repro",
+            Bug.status.in_(["pending", "running"]),
+            Bug.engineer_id.isnot(None)
+        ).count()
         running = query.filter(Bug.status == "running").count()
         completed = query.filter(Bug.status == "completed").count()
 
@@ -213,7 +217,11 @@ def bug_stats():
     total = query.count()
     repro = query.filter(Bug.bug_type == "repro").count()
     test = query.filter(Bug.bug_type == "test").count()
-    pending = query.filter(or_(Bug.bug_type == "repro", Bug.status == "pending")).count()
+    pending = query.filter(
+        Bug.bug_type == "repro",
+        Bug.status.in_(["pending", "running"]),
+        Bug.engineer_id.isnot(None)
+    ).count()
     running = query.filter(Bug.status == "running").count()
     completed = query.filter(Bug.status == "completed").count()
 
@@ -400,8 +408,25 @@ def get_reservations():
     if role != "Engineer":
         return jsonify({"error": "Only engineers can view reservations"}), 403
 
-    by_name = ReservationByName.query.filter_by(user_id=user_id).all()
-    by_config = ReservationByConfig.query.filter_by(user_id=user_id).all()
+    workgroup_id = request.args.get('workgroup_id', type=int)
+    release_version = None
+    if workgroup_id:
+        wg = Workgroup.query.get(workgroup_id)
+        release_version = wg.release_version if wg else None
+
+    # by_name: filter by release_version via bug's build_id
+    by_name_q = ReservationByName.query.filter_by(user_id=user_id)
+    if release_version:
+        by_name_q = by_name_q.join(Bug, ReservationByName.bug_id == Bug.bug_id).filter(
+            Bug.build_id == release_version
+        )
+    by_name = by_name_q.all()
+
+    # by_config: filter by release_version == resource_group
+    by_config_q = ReservationByConfig.query.filter_by(user_id=user_id)
+    if release_version:
+        by_config_q = by_config_q.filter(ReservationByConfig.resource_group == release_version)
+    by_config = by_config_q.all()
 
     reservations = []
 
