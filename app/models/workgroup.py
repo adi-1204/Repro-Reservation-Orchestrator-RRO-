@@ -52,11 +52,6 @@ class Workgroup(db.Model):
         cascade="all, delete-orphan"
     )
 
-    build_record = db.relationship(
-        "Build",
-        back_populates="workgroups"
-    )
-
     @property
     def is_completed(self):
         return self.status == "Completed"
