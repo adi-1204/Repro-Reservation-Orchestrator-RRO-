@@ -28,50 +28,10 @@ def _start_analysis_retry_scheduler(app):
                         creds = chathpe_client.load_creds_from_config(app.config)
                     except ValueError as exc:
                         print(f"[Retry Scheduler] ChatHPE creds unavailable: {exc}", flush=True)
-                        # Even if creds are missing, we can still do reservation cleanup
-                    
+                        time.sleep(_RETRY_INTERVAL_SECS)
+                        continue
                     print("[Retry Scheduler] Running pending analysis check...", flush=True)
-                    if 'creds' in locals():
-                        retry_pending_analysis(db.session, creds)
-                    
-                    # --- RESERVATION LIFECYCLE MANAGEMENT ---
-                    from app.models.reservation_by_name import ReservationByName
-                    from app.models.reservation_by_config import ReservationByConfig
-                    from datetime import datetime, timedelta
-                    
-                    now = datetime.utcnow()
-                    two_days_ago = now - timedelta(hours=48)
-                    one_day_ago = now - timedelta(hours=24)
-                    
-                    # 1. Auto-Release (Reserved -> Available after 48h)
-                    res_name_to_release = ReservationByName.query.filter(
-                        ReservationByName.status == 'reserved',
-                        ReservationByName.created_at < two_days_ago
-                    ).all()
-                    for r in res_name_to_release:
-                        r.status = 'available'
-                    
-                    res_config_to_release = ReservationByConfig.query.filter(
-                        ReservationByConfig.status == 'reserved',
-                        ReservationByConfig.created_at < two_days_ago
-                    ).all()
-                    for r in res_config_to_release:
-                        r.status = 'available'
-                    
-                    # 2. Auto-Remove (Cancelled -> Deleted after 24h)
-                    ReservationByName.query.filter(
-                        ReservationByName.status == 'cancelled',
-                        ReservationByName.cancelled_at < one_day_ago
-                    ).delete()
-                    
-                    ReservationByConfig.query.filter(
-                        ReservationByConfig.status == 'cancelled',
-                        ReservationByConfig.cancelled_at < one_day_ago
-                    ).delete()
-                    
-                    db.session.commit()
-                    print("[Retry Scheduler] Reservation lifecycle cleanup complete.", flush=True)
-                    # ----------------------------------------
+                    retry_pending_analysis(db.session, creds)
             except Exception as exc:
                 print(f"[Retry Scheduler] Unexpected error: {exc}", flush=True)
             time.sleep(_RETRY_INTERVAL_SECS)

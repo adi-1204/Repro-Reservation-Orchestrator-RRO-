@@ -230,25 +230,13 @@ async function loadReservationsData() {
             : `Nodes: ${r.number_of_nodes ?? '—'}, PDs: ${r.number_of_pds ?? '—'}, Type: ${r.rc ? 'RC' : 'Non-RC'}${r.code_floor ? `, Floor: ${r.code_floor}` : ''}`;
         const createdAt = r.created_at ? new Date(r.created_at).toLocaleString() : '—';
         const detailsEscaped = escapeHtml(String(details));
-        
-        const isCancelled = r.status === 'cancelled';
-        const statusClass = isCancelled ? 'status--cancelled' : 'status--reserved';
-        const statusLabel = isCancelled ? '❌ Cancelled' : '✅ Reserved';
-        
-        const actionHtml = isCancelled 
-            ? '<span class="text-muted">No actions</span>' 
-            : `<button class="btn-cancel-res" onclick="cancelReservation(${r.id}, '${r.type}')">Cancel</button>`;
 
         return `
-            <tr class="${isCancelled ? 'row-cancelled' : ''}">
+            <tr>
                 <td>${escapeHtml(String(modeLabel))}</td>
                 <td>${escapeHtml(String(primary))}</td>
                 <td class="reservation-details-cell" title="${detailsEscaped}">${detailsEscaped}</td>
-                <td>
-                    <span class="status-badge ${statusClass}">${statusLabel}</span>
-                </td>
                 <td>${escapeHtml(String(createdAt))}</td>
-                <td>${actionHtml}</td>
             </tr>
         `;
     }).join('');
@@ -256,27 +244,6 @@ async function loadReservationsData() {
     if (reservationsCount) {
         const count = reservations.length;
         reservationsCount.textContent = `${count} ${count === 1 ? 'reservation' : 'reservations'}`;
-    }
-}
-
-
-/* =========================================
-   Reservation Actions
-   ========================================= */
-
-async function cancelReservation(id, type) {
-    if (!confirm('Are you sure you want to cancel this reservation?')) return;
-    
-    const res = await apiFetch(`/api/reservations/${id}/cancel`, {
-        method: 'POST',
-        body: JSON.stringify({ type })
-    });
-    
-    if (res && res.message) {
-        showToast('Reservation cancelled successfully');
-        await loadReservationsData();
-    } else {
-        showToast('Failed to cancel reservation', 'error');
     }
 }
 
@@ -969,14 +936,14 @@ function renderStationTags() {
 
 /* ── Populate Dropdowns ── */
 async function populateReserveDropdowns() {
-    // Bug IDs from API (Engineer's own bugs, scoped to workgroup if active)
+    // Bug IDs from API (Engineer's own repro bugs only, scoped to workgroup if active)
     try {
         const bugsParams = new URLSearchParams();
         bugsParams.set('my_only', 'true');
         if (activeWorkgroupId) bugsParams.set('workgroup_id', activeWorkgroupId);
         const myBugsData = await apiFetch(`/api/bugs?${bugsParams.toString()}`);
         if (myBugsData) {
-            allBugOptions = [...(myBugsData.repro || []), ...(myBugsData.test || [])].map(b => ({ id: b.id, name: b.bug_name }));
+            allBugOptions = (myBugsData.repro || []).map(b => ({ id: b.id, name: b.bug_name }));
         } else {
             allBugOptions = [];
         }

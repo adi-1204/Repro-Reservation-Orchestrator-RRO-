@@ -106,24 +106,6 @@ def get_bugs():
         # Engineers only see their own bugs
         query = query.filter(Bug.engineer_id == user_id)
 
-    # --- STRICT BUG-TO-WORKGROUP MAPPING (User Requirement) ---
-    bug_wg_mapping = {
-        '100001': 5, '100002': 5, '100003': 5, '100004': 5, '100005': 5,
-        '100006': 5, '100007': 5, '100008': 5, '100009': 5, '100010': 5, '100011': 5,
-        '100012': 6, '100013': 6, '100014': 6,
-        '100015': 7, '100016': 7, '100017': 7,
-        '100018': 8, '100019': 8, '100020': 8,
-        '100021': 9, '100022': 9, '100023': 9
-    }
-    
-    if workgroup_id:
-        # If we are in a workgroup view, restrict specifically mapped bugs.
-        # This matches the user's mapping requirement.
-        mapped_bug_ids = [bid for bid, wgid in bug_wg_mapping.items() if wgid == workgroup_id]
-        if mapped_bug_ids:
-            query = query.filter(Bug.bug_id.in_(mapped_bug_ids))
-    # --- END MAPPING ---
-
     bugs = query.all()
 
     repro = []
@@ -478,24 +460,16 @@ def get_reservations():
         wg = Workgroup.query.get(workgroup_id)
         release_version = wg.release_version if wg else None
 
-    # by_name: filter by internal assignments
+    # by_name: filter by release_version via bug's build_id
     by_name_q = ReservationByName.query.filter_by(user_id=user_id)
-    # Filter out cancelled records older than 24 hours
-    one_day_ago = datetime.utcnow() - timedelta(hours=24)
-    by_name_q = by_name_q.filter(
-        (ReservationByName.status != 'cancelled') | (ReservationByName.cancelled_at > one_day_ago)
-    )
     if release_version:
         by_name_q = by_name_q.join(Bug, ReservationByName.bug_id == Bug.bug_id).filter(
             Bug.build_id == release_version
         )
     by_name = by_name_q.all()
 
-    # by_config: filter by internal assignments
+    # by_config: filter by release_version == resource_group
     by_config_q = ReservationByConfig.query.filter_by(user_id=user_id)
-    by_config_q = by_config_q.filter(
-        (ReservationByConfig.status != 'cancelled') | (ReservationByConfig.cancelled_at > one_day_ago)
-    )
     if release_version:
         by_config_q = by_config_q.filter(ReservationByConfig.resource_group == release_version)
     by_config = by_config_q.all()
@@ -556,64 +530,39 @@ def create_reservation():
             stations = data.get('stations', [])
             stations_str = ",".join(stations) if isinstance(stations, list) else str(stations)
             
-            # --- DUPLICATE PREVENTION ---
-            duplicate = ReservationByName.query.filter(
-                (ReservationByName.stations.like(f"%{stations_str}%")) &
-                (ReservationByName.status == 'reserved')
-            ).first()
-            if duplicate:
-                return jsonify({"error": f"Station '{stations_str}' is already reserved"}), 400
-            # ----------------------------
-
             new_res = ReservationByName(
                 user_id=user_id,
                 bug_id=data.get('bug_id'),
                 stations=stations_str,
                 specify_station=data.get('specify_station', False),
-                status='reserved',   # Default to 'reserved' as per instructions
-                created_at=datetime.utcnow()
+                status='completed',   # or 'pending'
+                created_at=datetime.now()
             )
             db.session.add(new_res)
             db.session.commit()
             
             return jsonify({
                 "message": "Reservation by name stored successfully",
-                "reservation_id": new_res.id,
-                "status": "reserved"
+                "reservation_id": new_res.id
             }), 201
 
         elif res_type == 'by_config':
-            # --- DUPLICATE PREVENTION ---
-            rc_val = data.get('rc', False)
-            nodes = data.get('number_of_nodes')
-            res_group = data.get('resource_group')
-            
-            duplicate = ReservationByConfig.query.filter(
-                (ReservationByConfig.resource_group == res_group) &
-                (ReservationByConfig.number_of_nodes == nodes) &
-                (ReservationByConfig.status == 'reserved')
-            ).first()
-            if duplicate:
-                return jsonify({"error": "A station with this configuration is already reserved"}), 400
-            # ----------------------------
-
             new_res = ReservationByConfig(
                 user_id=user_id,
-                resource_group=res_group,
-                number_of_nodes=nodes,
+                resource_group=data.get('resource_group'),
+                number_of_nodes=data.get('number_of_nodes'),
                 code_floor=data.get('code_floor'),
                 number_of_pds=data.get('number_of_pds'),
-                rc=rc_val,
-                status='reserved',   # Default to 'reserved' as per instructions
-                created_at=datetime.utcnow()
+                rc=data.get('rc', False),
+                status='pending',   # ✅ ADD THIS
+                created_at=datetime.now()
             )
             db.session.add(new_res)
             db.session.commit()
             
             return jsonify({
                 "message": "Reservation by config stored successfully",
-                "reservation_id": new_res.id,
-                "status": "reserved"
+                "reservation_id": new_res.id
             }), 201
         
         else:
@@ -624,37 +573,10 @@ def create_reservation():
         print(f"[Reservation Error] {str(e)}", flush=True)
         return jsonify({"error": "Failed to store reservation", "details": str(e)}), 500
 # --------------------------------------------------
-# CANCEL RESERVATION
+# GET BUG ML ANALYSIS
 # --------------------------------------------------
-@bug.route("/api/reservations/<int:res_id>/cancel", methods=["POST"])
-def cancel_reservation(res_id):
-    from app.models.reservation_by_name import ReservationByName
-    from app.models.reservation_by_config import ReservationByConfig
-
-    user_id = get_current_user_id()
-    if not user_id:
-        return jsonify({"error": "Not logged in"}), 401
-
-    data = request.json
-    res_type = data.get('type')
-
-    try:
-        if res_type == 'by_name':
-            res = ReservationByName.query.filter_by(id=res_id, user_id=user_id).first()
-        else:
-            res = ReservationByConfig.query.filter_by(id=res_id, user_id=user_id).first()
-
-        if not res:
-            return jsonify({"error": "Reservation not found"}), 404
-
-        res.status = 'cancelled'
-        res.cancelled_at = datetime.utcnow()
-        db.session.commit()
-
-        return jsonify({"message": "Reservation cancelled successfully", "status": "cancelled"})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+@bug.route("/api/bugs/<string:bug_id>/analysis", methods=["GET"])
+def get_bug_analysis(bug_id):
 
     user_id = get_current_user_id()
 

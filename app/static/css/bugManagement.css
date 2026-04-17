@@ -681,37 +681,25 @@ body {
 
 #reservationsSection .bugs-table th:nth-child(1),
 #reservationsSection .bugs-table td:nth-child(1) {
-    width: 10%;
+    width: 14%;
     text-align: center;
 }
 
 #reservationsSection .bugs-table th:nth-child(2),
 #reservationsSection .bugs-table td:nth-child(2) {
-    width: 15%;
+    width: 28%;
     text-align: left;
 }
 
 #reservationsSection .bugs-table th:nth-child(3),
 #reservationsSection .bugs-table td:nth-child(3) {
-    width: 30%;
+    width: 40%;
     text-align: left;
 }
 
 #reservationsSection .bugs-table th:nth-child(4),
 #reservationsSection .bugs-table td:nth-child(4) {
-    width: 15%;
-    text-align: center;
-}
-
-#reservationsSection .bugs-table th:nth-child(5),
-#reservationsSection .bugs-table td:nth-child(5) {
-    width: 15%;
-    text-align: center;
-}
-
-#reservationsSection .bugs-table th:nth-child(6),
-#reservationsSection .bugs-table td:nth-child(6) {
-    width: 15%;
+    width: 18%;
     text-align: center;
 }
 
@@ -1922,55 +1910,7 @@ body {
     transform: scale(1);
 }
 
-
 /* -- Toast Notification -- */
 .toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px); background: #10b981; color: white; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); opacity: 0; visibility: hidden; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 9999; }
 .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; visibility: visible; }
 .toast.error { background: #ef4444; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
-
-/* ── Reservation Status Badges ── */
-.status-badge {
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.status--reserved {
-    background: #dcfce7;
-    color: #15803d;
-}
-
-.status--cancelled {
-    background: #fee2e2;
-    color: #b91c1c;
-}
-
-.row-cancelled {
-    opacity: 0.7;
-    background-color: #f8fafc;
-}
-
-.btn-cancel-res {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    color: #ef4444;
-    font-size: 11.5px;
-    font-weight: 600;
-    padding: 4px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.btn-cancel-res:hover {
-    background: #fef2f2;
-    border-color: #fee2e2;
-}
-
-.text-muted {
-    color: #94a3b8;
-    font-style: italic;
-    font-size: 11.5px;
-}

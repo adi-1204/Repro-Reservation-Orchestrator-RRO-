@@ -12,8 +12,7 @@ class ReservationByName(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref=db.backref('reservations_by_name', lazy=True))
-    status = db.Column(db.Enum('available', 'reserved', 'cancelled'), nullable=False, default='available')
-    cancelled_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.Enum('pending', 'completed', 'rejected'),nullable=False,default='pending')
 
     def __repr__(self):
         return f'<ReservationByName {self.bug_id} by User {self.user_id}>'

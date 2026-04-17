@@ -1,0 +1,1315 @@
+﻿[
+    {
+        "Bug Id":  "100001",
+        "Product":  "Remote Copy",
+        "Component":  "FC",
+        "Status":  "REPRODUCE",
+        "Assignee":  "akshay.shankar@hpe.com",
+        "Reporter":  "test.reporter1@hpe.com",
+        "Developer Progress":  "Investigating",
+        "Priority":  "P1",
+        "Severity":  "critical",
+        "Data Outage":  "Data unavailable",
+        "Whiteboard":  "RCopy mock_bug",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter1@hpe.com",
+                             "creation_time":  "2024-03-01T08:14:22Z",
+                             "text":  "Test  Name: testsrc/RemoteCopy/FCTest/RCopyFCBasic/RCopyFCBasic.py\n\tTest  Plan  Name: CEE_Integ_RCopy_B648\n\tTest  Ring  Name: mockring1\n\tExecution  Start: 2024-03-01 08:00:00.000000 UTC\n\tExecution  End: 2024-03-01 09:15:00.000000 UTC\n\tTriager: test.reporter1@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.3.1.648\n\tNFS Path: /net/cxo-odin-nfs/exports/odin01/fake1abc123/2024-03-01_08-00-00_111111\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake001\n\tSignature: Remote copy FC link failed to synchronize after failover\n\nBug Summary:\n    RCopyFCBasic: TermError: Remote copy FC link failed to synchronize after failover\n\nTerm Error:\n    *** TermError: Remote copy FC link failed to synchronize after failover. LUN WWN:60002AC000000000000011110007FAAA\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)\n    Host: mockring1.cxo.storage.hpecorp.net\n    Host type: rhel8.2/ProLiant DL380 Gen9\n    Found: SN1600Q, fw:9.06.02 (d0d5), drv:10.02.01.00.a14-k1"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-03-02T10:30:00Z",
+                             "text":  "Looked at the FC port logs. There are repeated CRC errors on port 1:2:1 around the failure time. This looks like a fabric-level issue causing the RC sync to time out. Assigning to the FC/driver team for further investigation."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "fc.driver.team@hpe.com",
+                             "creation_time":  "2024-03-04T14:00:00Z",
+                             "text":  "Reproduced internally. The root cause is an incorrect timeout value set during failover in the FC path recovery logic. Fix: update rcopy_retrans_timeout KVAR and ensure port re-registration completes before sync resumes. Patch in progress at reviewboard r/88100."
+                         },
+                         {
+                             "id":  4,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-03-06T09:00:00Z",
+                             "text":  "Verified fix on internal build. Running 3 more regression cycles to confirm stability across different fabric configurations."
+                         }
+                     ],
+        "Bug Name":  "RCopy FC Link Sync Failure After Failover",
+        "Tests":  [
+                      {
+                          "test_name":  "RCopyFCBasic.py",
+                          "station_name":  "mockring1",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "RCopyFCFailover.py",
+                          "station_name":  "mockring2",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100002",
+        "Product":  "Volume Manager",
+        "Component":  "PD",
+        "Status":  "REPRODUCE",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter2@hpe.com",
+        "Developer Progress":  "Triaging",
+        "Priority":  "P2",
+        "Severity":  "major",
+        "Data Outage":  "not applicable",
+        "Whiteboard":  "VM mock_bug",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter2@hpe.com",
+                             "creation_time":  "2024-03-05T07:20:00Z",
+                             "text":  "Test  Name: testsrc/VolumeManager/PDTest/PDScrubCycle/PDScrubCycle.py\n\tTest  Plan  Name: CEE_Integ_VM_B648\n\tTest  Ring  Name: mockring2\n\tExecution  Start: 2024-03-05 07:00:00.000000 UTC\n\tExecution  End: 2024-03-05 08:10:00.000000 UTC\n\tTriager: test.reporter2@hpe.com\n\tController  Types: Merlin1S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.3.1.648\n\tNFS Path: /net/cxo-odin-nfs/exports/odin03/fake2bcd234/2024-03-05_07-00-00_222222\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake002\n\tSignature: PD scrubbing operation aborted unexpectedly mid-cycle causing volume inconsistency\n\nBug Summary:\n    PDScrubCycle: TermError: PD scrub cycle aborted on PD 0:1:3\n\nTerm Error:\n    *** TermError: PD scrub cycle aborted unexpectedly on PD 0:1:3\n\nHost Info:\n    Array type: Merlin1S/C630 (primera)\n    Host: mockring2.cxo.storage.hpecorp.net\n    Found: SN1600Q, fw:9.06.02 (d0d5), drv:10.02.01.00.a14"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-03-06T11:00:00Z",
+                             "text":  "I believe this falls under enclosure management. The PD scrub abort correlates with an enclosure temperature spike logged just before the failure. Routing to the enclosure management team to review thermal event handling."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "enclosure.team@hpe.com",
+                             "creation_time":  "2024-03-07T13:45:00Z",
+                             "text":  "Confirmed thermal event on cage 1 at the same timestamp. The firmware does not gracefully pause scrubbing during temperature warnings. Fix: add a scrub-pause handler on thermal threshold event. ETA for patch: next sprint."
+                         },
+                         {
+                             "id":  4,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-03-09T08:00:00Z",
+                             "text":  "I have analyzed the bug. I feel like we need more runs - just regular runs are okay to confirm whether the scrub abort can happen independently of thermal events."
+                         }
+                     ],
+        "Bug Name":  "PD Scrub Cycle Aborted Mid-Operation",
+        "Tests":  [
+                      {
+                          "test_name":  "PDScrubCycle.py",
+                          "station_name":  "mockring2",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "PDScrubResume.py",
+                          "station_name":  "mockring5",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "PDScrubThermalGuard.py",
+                          "station_name":  null,
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100003",
+        "Product":  "System Manager",
+        "Component":  "General",
+        "Status":  "REPRODUCE",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter3@hpe.com",
+        "Developer Progress":  "Fix Exists",
+        "Priority":  "P1",
+        "Severity":  "normal",
+        "Data Outage":  "---",
+        "Whiteboard":  "SM mock_bug",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter3@hpe.com",
+                             "creation_time":  "2024-03-10T06:00:00Z",
+                             "text":  "Test  Name: testsrc/SystemManager/General/SMRestart/SMRestart.py\n\tTest  Plan  Name: CEE_Integ_SM_B648\n\tTest  Ring  Name: mockring3\n\tExecution  Start: 2024-03-10 06:00:00.000000 UTC\n\tExecution  End: 2024-03-10 07:30:00.000000 UTC\n\tTriager: test.reporter3@hpe.com\n\tController  Types: Tornado\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.3.1.648\n\tNFS Path: /net/cxo-odin-nfs/exports/odin04/fake3cde345/2024-03-10_06-00-00_333333\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake003\n\tSignature: System Manager restart stalled during node state synchronization\n\nBug Summary:\n    SMRestart: TermError: SM node state sync timed out after 300 seconds\n\nTerm Error:\n    *** TermError: SM node state sync timed out. Node 1 not responsive.\n\nHost Info:\n    Array type: Tornado/8440 (3parH2)\n    Host: mockring3.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-03-11T09:30:00Z",
+                             "text":  "Root cause identified: a race condition in the SM state machine where node 1 does not re-register after a clean restart if node 0 has already advanced past the INIT state. Fix exists in reviewboard r/88001. Patch tested on 3 rings without recurrence."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "qa.team@hpe.com",
+                             "creation_time":  "2024-03-12T14:00:00Z",
+                             "text":  "Verified fix on 3.3.1.650 internal build. All 5 regression runs passed. Recommending promotion."
+                         }
+                     ],
+        "Bug Name":  "SM Node State Sync Timeout on Restart",
+        "Tests":  [
+                      {
+                          "test_name":  "SMRestart.py",
+                          "station_name":  "mockring3",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "SMRestartCluster.py",
+                          "station_name":  "mockring6",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "SMNodeReregister.py",
+                          "station_name":  "mockring3",
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "SMStateSyncRetry.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100004",
+        "Product":  "VASA/VVol",
+        "Component":  "Remote Copy",
+        "Status":  "OPEN",
+        "Assignee":  "akshay.shankar@hpe.com",
+        "Reporter":  "test.reporter4@hpe.com",
+        "Developer Progress":  "No progress available",
+        "Priority":  "P2",
+        "Severity":  "enhancement",
+        "Data Outage":  "---",
+        "Whiteboard":  "VVOL mock_bug",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter4@hpe.com",
+                             "creation_time":  "2024-03-12T10:00:00Z",
+                             "text":  "Test  Name: testsrc/VASA/VVolRC/VVolRCSync/VVolRCSync.py\n\tTest  Plan  Name: CEE_Integ_VVOL_B648\n\tTest  Ring  Name: mockring4\n\tExecution  Start: 2024-03-12 09:45:00.000000 UTC\n\tExecution  End: 2024-03-12 11:00:00.000000 UTC\n\tTriager: test.reporter4@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 4\n\tFailure  Type: software\n\tBuild  Version: 3.3.1.648\n\tNFS Path: /net/cxo-odin-nfs/exports/odin05/fake4def456/2024-03-12_09-45-00_444444\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake004\n\tSignature: VVol Remote Copy sync group lost track of replicated VVols after vCenter reconnect\n\nBug Summary:\n    VVolRCSync: VVol RC sync group lost replicated VVols after vCenter reconnect\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)\n    Host: mockring4.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-03-13T08:00:00Z",
+                             "text":  "Known limitation with the current VVol RC implementation. When vCenter loses connectivity and reconnects, the VASA provider does not re-query the sync group state. Enhancement requested to add a reconnect-triggered re-sync event. Logging for tracking only at this stage."
+                         }
+                     ],
+        "Bug Name":  "VVol RC Sync Group Lost After vCenter Reconnect",
+        "Tests":  [
+                      {
+                          "test_name":  "VVolRCSync.py",
+                          "station_name":  "mockring4",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "VVolRCSyncReconnect.py",
+                          "station_name":  "mockring7",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "VVolRCMetadataRefresh.py",
+                          "station_name":  null,
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "VVolRCReconnectAudit.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "VVolRCGroupRecovery.py",
+                          "station_name":  "mockring6",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100005",
+        "Product":  "Serviceability",
+        "Component":  "Event/Alert Infrastructure",
+        "Status":  "CLOSED",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter5@hpe.com",
+        "Developer Progress":  "Fixed On Branch",
+        "Priority":  "P2",
+        "Severity":  "normal",
+        "Data Outage":  "not applicable",
+        "Whiteboard":  "",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter5@hpe.com",
+                             "creation_time":  "2024-02-20T07:00:00Z",
+                             "text":  "Test  Name: testsrc/Serviceability/EventInfra/AlertThreshold/AlertThreshold.py\n\tTest  Plan  Name: CEE_Integ_Svc_B648\n\tTest  Ring  Name: mockring5\n\tExecution  Start: 2024-02-20 07:00:00.000000 UTC\n\tExecution  End: 2024-02-20 08:20:00.000000 UTC\n\tTriager: test.reporter5@hpe.com\n\tController  Types: Merlin1S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.3.1.648\n\tSignature: Alert not triggered when disk utilization exceeded configured threshold of 90%\n\nBug Summary:\n    AlertThreshold: Alert not fired for disk utilization \u003e 90% threshold\n\nHost Info:\n    Array type: Merlin1S/C630 (primera)\n    Host: mockring5.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-02-21T09:00:00Z",
+                             "text":  "Root cause: off-by-one error in the threshold comparison in alertmgr.c. The alert was coded as \u003e=91 due to integer rounding instead of \u003e=90. One-line fix. Patch submitted to reviewboard r/77005."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "qa.team@hpe.com",
+                             "creation_time":  "2024-02-23T11:00:00Z",
+                             "text":  "Fix verified. Alert now fires correctly at \u003e=90%. Closing bug."
+                         }
+                     ],
+        "Bug Name":  "Alert Not Triggered at Disk Utilization Threshold",
+        "Tests":  [
+                      {
+                          "test_name":  "AlertThreshold.py",
+                          "station_name":  "mockring5",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "AlertThresholdBoundary.py",
+                          "station_name":  "mockring8",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100006",
+        "Product":  "Remote Copy",
+        "Component":  "IP",
+        "Status":  "REPRODUCE",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter6@hpe.com",
+        "Developer Progress":  "Investigating",
+        "Priority":  "P1",
+        "Severity":  "critical",
+        "Data Outage":  "Data unavailable",
+        "Whiteboard":  "RCopy IP mock_bug",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter6@hpe.com",
+                             "creation_time":  "2024-03-15T05:00:00Z",
+                             "text":  "Test  Name: testsrc/RemoteCopy/IPTest/RCopyIPFailover/RCopyIPFailover.py\n\tTest  Plan  Name: CEE_Integ_RCopy_B648_IP\n\tTest  Ring  Name: mockring6\n\tExecution  Start: 2024-03-15 05:00:00.000000 UTC\n\tExecution  End: 2024-03-15 06:30:00.000000 UTC\n\tTriager: test.reporter6@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.3.1.648\n\tNFS Path: /net/cxo-odin-nfs/exports/odin06/fake6fgh678/2024-03-15_05-00-00_666666\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake006\n\tSignature: IP Remote Copy group stuck in FAILOVER_PENDING state after network blip\n\nBug Summary:\n    RCopyIPFailover: RCOPY group stuck in FAILOVER_PENDING indefinitely\n\nTerm Error:\n    *** TermError: RCopy group mockRCG1 stuck in FAILOVER_PENDING for \u003e 600 seconds\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)\n    Host: mockring6.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-03-16T10:00:00Z",
+                             "text":  "Reproduced twice. The FAILOVER_PENDING state is not cleaned up when the failover does not complete within the timeout. The state machine needs a forced-transition to FAILOVER_FAILED after timeout. Reviewing rcopy state machine code."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-03-18T09:00:00Z",
+                             "text":  "I have analyzed the bug. I feel like we need more runs - just regular runs are okay to confirm frequency. Workaround: run \u0027setrcopygroup resync \u003cgroupname\u003e\u0027 after detecting the PENDING state to manually clear it."
+                         }
+                     ],
+        "Bug Name":  "RCopy IP Group Stuck in Failover Pending",
+        "Tests":  [
+                      {
+                          "test_name":  "RCopyIPFailover.py",
+                          "station_name":  "mockring6",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "RCopyIPReconnect.py",
+                          "station_name":  "mockring9",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "RCopyIPResync.py",
+                          "station_name":  null,
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "RCopyIPTimeoutRecovery.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100007",
+        "Product":  "VV Management",
+        "Component":  "VV",
+        "Status":  "CLOSED",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter7@hpe.com",
+        "Developer Progress":  "Rti Submitted",
+        "Priority":  "P2",
+        "Severity":  "trivial",
+        "Data Outage":  "unknown",
+        "Whiteboard":  "",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter7@hpe.com",
+                             "creation_time":  "2024-02-10T08:00:00Z",
+                             "text":  "Test  Name: testsrc/VVManagement/VVCreate/VVCreateOptions/VVCreateOptions.py\n\tTest  Plan  Name: CEE_Integ_VV_B648\n\tTest  Ring  Name: mockring7\n\tExecution  Start: 2024-02-10 08:00:00.000000 UTC\n\tExecution  End: 2024-02-10 09:00:00.000000 UTC\n\tTriager: test.reporter7@hpe.com\n\tController  Types: Merlin1S\n\tNumber  Of  Nodes: 2\n\tBuild  Version: 3.3.1.648\n\tSignature: VV creation with -tpvv flag returns incorrect size in showvv output\n\nBug Summary:\n    VVCreateOptions: showvv reports incorrect virtual size after tpvv creation\n\nHost Info:\n    Array type: Merlin1S/C630 (primera)"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-02-11T10:00:00Z",
+                             "text":  "Display-only issue in the CLI formatting layer. Actual allocated size is correct in backend. The showvv command rounds down incorrectly for sizes not multiples of 256 MiB. Fix submitted via RTI."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-02-14T08:00:00Z",
+                             "text":  "RTI accepted. Fix included in 3.3.1.651. Closing."
+                         }
+                     ],
+        "Bug Name":  "showvv Reports Wrong Size After TPVV Create",
+        "Tests":  [
+                      {
+                          "test_name":  "VVCreateOptions.py",
+                          "station_name":  "mockring7",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "VVCreateTPVVSize.py",
+                          "station_name":  "mockring10",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "VVShowFormatEdge.py",
+                          "station_name":  null,
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100008",
+        "Product":  "System Manager",
+        "Component":  "Task Manager",
+        "Status":  "REPRODUCE",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter8@hpe.com",
+        "Developer Progress":  "Triaging",
+        "Priority":  "P1",
+        "Severity":  "major",
+        "Data Outage":  "---",
+        "Whiteboard":  "SM Task mock_bug",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter8@hpe.com",
+                             "creation_time":  "2024-03-20T07:00:00Z",
+                             "text":  "Test  Name: testsrc/SystemManager/TaskManager/TaskQueueOverflow/TaskQueueOverflow.py\n\tTest  Plan  Name: CEE_Integ_SM_Task_B648\n\tTest  Ring  Name: mockring8\n\tExecution  Start: 2024-03-20 07:00:00.000000 UTC\n\tExecution  End: 2024-03-20 08:45:00.000000 UTC\n\tTriager: test.reporter8@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 4\n\tFailure  Type: software\n\tBuild  Version: 3.3.1.648\n\tNFS Path: /net/cxo-odin-nfs/exports/odin08/fake8hij890/2024-03-20_07-00-00_888888\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake008\n\tSignature: Task Manager queue overflow causes SM to stop accepting new tasks\n\nBug Summary:\n    TaskQueueOverflow: SM stopped accepting new tasks after queue depth exceeded 512\n\nTerm Error:\n    *** TermError: SM task queue full. New tasks rejected.\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)\n    Host: mockring8.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-03-21T09:30:00Z",
+                             "text":  "I think this comes under the system manager task scheduler team. The queue limit of 512 is a fixed compile-time constant set for older hardware. On 4-node configurations under heavy load this is easily exceeded. Routing to SM scheduler owners."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "sm.scheduler.team@hpe.com",
+                             "creation_time":  "2024-03-22T14:00:00Z",
+                             "text":  "Confirmed. Fix: make task queue depth configurable via KVAR sm_task_queue_max and increase default to 2048 for 4+ node systems. Patch under review at r/89002."
+                         },
+                         {
+                             "id":  4,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-03-24T08:00:00Z",
+                             "text":  "Need more runs to determine if default 2048 is sufficient. Running regular regression on 4-node rings."
+                         }
+                     ],
+        "Bug Name":  "SM Task Queue Overflow Rejects New Tasks",
+        "Tests":  [
+                      {
+                          "test_name":  "TaskQueueOverflow.py",
+                          "station_name":  "mockring8",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "TaskQueueOverflowBurst.py",
+                          "station_name":  "mockring11",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "TaskQueueRecovery.py",
+                          "station_name":  "mockring12",
+                          "build_version":  null,
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "SMTaskQueueBurst.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "SMTaskQueueDrain.py",
+                          "station_name":  "mockring10",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100009",
+        "Product":  "InForm Storage Drivers",
+        "Component":  "SAS LSI",
+        "Status":  "VERIFIED",
+        "Assignee":  "akshay.shankar@hpe.com",
+        "Reporter":  "test.reporter9@hpe.com",
+        "Developer Progress":  "Fixed On Branch",
+        "Priority":  "P1",
+        "Severity":  "critical",
+        "Data Outage":  "Data inconsistent",
+        "Whiteboard":  "322MU6_Content_Propagated",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter9@hpe.com",
+                             "creation_time":  "2024-02-01T06:00:00Z",
+                             "text":  "Test  Name: testsrc/InFormDriver/SASLSITest/SASLSIReset/SASLSIReset.py\n\tTest  Plan  Name: CEE_Integ_ISD_SAS_B648\n\tTest  Ring  Name: mockring9\n\tExecution  Start: 2024-02-01 06:00:00.000000 UTC\n\tExecution  End: 2024-02-01 07:30:00.000000 UTC\n\tTriager: test.reporter9@hpe.com\n\tController  Types: Merlin1S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.3.1.648\n\tSignature: SAS LSI controller reports data inconsistency after bus reset\n\nBug Summary:\n    SASLSIReset: Data inconsistency detected on SAS LSI controller post-reset\n\nHost Info:\n    Array type: Merlin1S/C630 (primera)"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-02-02T10:00:00Z",
+                             "text":  "Root cause: SAS LSI firmware does not flush its write buffer during a bus reset sequence causing partial writes to appear inconsistent. Fix: update to LSI FW version 24.00.00.00. Patch propagated to 3.2.2 MU6 branch."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "qa.team@hpe.com",
+                             "creation_time":  "2024-02-05T14:00:00Z",
+                             "text":  "Verified with LSI FW 24.00.00.00. No data inconsistency observed across 10 reset cycles. Marking VERIFIED."
+                         }
+                     ],
+        "Bug Name":  "SAS LSI Data Inconsistency After Bus Reset",
+        "Tests":  [
+                      {
+                          "test_name":  "SASLSIReset.py",
+                          "station_name":  "mockring9",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "SASLSIResetStress.py",
+                          "station_name":  "mockring13",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100010",
+        "Product":  "Remote Copy",
+        "Component":  "General",
+        "Status":  "REPRODUCE",
+        "Assignee":  "akshay.shankar@hpe.com",
+        "Reporter":  "test.reporter10@hpe.com",
+        "Developer Progress":  "Investigating",
+        "Priority":  "P2",
+        "Severity":  "major",
+        "Data Outage":  "---",
+        "Whiteboard":  "RCopy General mock_bug",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter10@hpe.com",
+                             "creation_time":  "2024-03-25T08:00:00Z",
+                             "text":  "Test  Name: testsrc/RemoteCopy/General/RCopyRoleSwitch/RCopyRoleSwitch.py\n\tTest  Plan  Name: CEE_Integ_RCopy_General_B648\n\tTest  Ring  Name: mockring10\n\tExecution  Start: 2024-03-25 08:00:00.000000 UTC\n\tExecution  End: 2024-03-25 09:20:00.000000 UTC\n\tTriager: test.reporter10@hpe.com\n\tController  Types: Tornado\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.3.1.648\n\tNFS Path: /net/cxo-odin-nfs/exports/odin09/fake10jkl101/2024-03-25_08-00-00_101010\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake010\n\tSignature: RCopy role switch exceeded SLA timeout of 120 seconds - took 187 seconds\n\nBug Summary:\n    RCopyRoleSwitch: Role switch exceeded 120s SLA. Took 187 seconds.\n\nTerm Error:\n    *** TermError: RCopy role switch timeout exceeded. Group: mockRCGGeneral1\n\nHost Info:\n    Array type: Tornado/8440 (3parH2)\n    Host: mockring10.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-03-26T10:30:00Z",
+                             "text":  "Investigating slow role switch. Delay occurs during volume resync phase when the RCopy group contains more than 50 VVs. The resync is serialized rather than parallelized - known architectural limitation being revisited."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-03-28T09:00:00Z",
+                             "text":  "I have analyzed the bug. I feel like we need more runs just to determine if slowness is consistent or depends on VV count and data delta. Running regular regression with varying group sizes."
+                         }
+                     ],
+        "Bug Name":  "RCopy Role Switch Exceeded SLA Timeout",
+        "Tests":  [
+                      {
+                          "test_name":  "RCopyRoleSwitch.py",
+                          "station_name":  "mockring10",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "RCopyRoleSwitchLargeVV.py",
+                          "station_name":  "mockring14",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "RCopyRoleSwitchDelta.py",
+                          "station_name":  null,
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100011",
+        "Product":  "Volume Manager",
+        "Component":  "pfail",
+        "Status":  "REPRODUCE",
+        "Assignee":  "external.engineer@example.com",
+        "Reporter":  "test.reporter11@hpe.com",
+        "Developer Progress":  "Triaging",
+        "Priority":  "P2",
+        "Severity":  "normal",
+        "Data Outage":  "---",
+        "Whiteboard":  "external only - should not appear in HPE engineer filter",
+        "Build":  "3.3.1.648",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter11@hpe.com",
+                             "creation_time":  "2024-03-01T10:00:00Z",
+                             "text":  "Test  Name: testsrc/VolumeManager/Pfail/PfailBasic/PfailBasic.py\n\tTest  Plan  Name: CEE_Integ_VM_Pfail_B648\n\tTest  Ring  Name: mockring11\n\tExecution  Start: 2024-03-01 10:00:00.000000 UTC\n\tExecution  End: 2024-03-01 11:00:00.000000 UTC\n\tTriager: test.reporter11@hpe.com\n\tController  Types: Merlin1S\n\tNumber  Of  Nodes: 2\n\tBuild  Version: 3.3.1.648\n\tSignature: Pfail volume not promoted after primary node power failure\n\nBug Summary:\n    PfailBasic: Pfail volume not promoted when primary node fails\n\nHost Info:\n    Array type: Merlin1S/C630 (primera)"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "external.engineer@example.com",
+                             "creation_time":  "2024-03-02T12:00:00Z",
+                             "text":  "This could be related to the pfail timer not being reset properly after the last successful IO. The pfail daemon checks the IO timestamp against a stale cache. Suggested fix: flush the pfail timestamp cache on node-down event."
+                         }
+                     ],
+        "Bug Name":  "Pfail Volume Not Promoted After Node Failure",
+        "Tests":  [
+                      {
+                          "test_name":  "PfailBasic.py",
+                          "station_name":  "mockring11",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "PfailPromotionBasic.py",
+                          "station_name":  "mockring15",
+                          "build_version":  "3.3.1.648",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "PfailTimerReset.py",
+                          "station_name":  null,
+                          "build_version":  "3.3.1.648",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "PfailTimerValidation.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100012",
+        "Product":  "RC Transport",
+        "Component":  "General",
+        "Status":  "OPEN",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter12@hpe.com",
+        "Developer Progress":  "No progress available",
+        "Priority":  "P2",
+        "Severity":  "normal",
+        "Data Outage":  "---",
+        "Whiteboard":  "",
+        "Build":  "4.6.5",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter12@hpe.com",
+                             "creation_time":  "2024-04-10T08:00:00Z",
+                             "text":  "Test  Name: testsrc/RCTransport/General/RCTKVARPersist/RCTKVARPersist.py\n\tTest  Plan  Name: CEE_Integ_RCT_465\n\tTest  Ring  Name: mockring12\n\tExecution  Start: 2024-04-10 08:00:00.000000 UTC\n\tExecution  End: 2024-04-10 09:15:00.000000 UTC\n\tTriager: test.reporter12@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 2\n\tBuild  Version: 4.6.5\n\tSignature: RC Transport tuning KVARs reset to defaults after SM restart\n\nBug Summary:\n    RCTKVARPersist: RC Transport KVAR settings lost after SM restart\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-04-11T11:00:00Z",
+                             "text":  "Newly opened - no root cause yet. Transport parameters are persisted in config DB but appear to be read before DB is fully re-loaded after restart. Will investigate SM startup sequence for RC transport initialization order."
+                         }
+                     ],
+        "Bug Name":  "RC Transport KVAR Settings Lost After Restart",
+        "Tests":  [
+                      {
+                          "test_name":  "RCTKVARPersist.py",
+                          "station_name":  "mockring12",
+                          "build_version":  "4.6.5",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "RCTKVARPersistRestart.py",
+                          "station_name":  "mockring16",
+                          "build_version":  "4.6.5",
+                          "configuration":  null
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100013",
+        "Product":  "Remote Copy",
+        "Component":  "FC",
+        "Status":  "OPEN",
+        "Assignee":  "akshay.shankar@hpe.com",
+        "Reporter":  "test.reporter13@hpe.com",
+        "Developer Progress":  "Investigating",
+        "Priority":  "P1",
+        "Severity":  "critical",
+        "Data Outage":  "Data unavailable",
+        "Whiteboard":  "RCopy FC mock_bug",
+        "Build":  "4.6.5",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter13@hpe.com",
+                             "creation_time":  "2024-04-15T07:00:00Z",
+                             "text":  "Test  Name: testsrc/RemoteCopy/FCTest/RCopyFCMultiPath/RCopyFCMultiPath.py\n\tTest  Plan  Name: CEE_Integ_RCopy_FC_465\n\tTest  Ring  Name: mockring13\n\tExecution  Start: 2024-04-15 07:00:00.000000 UTC\n\tExecution  End: 2024-04-15 08:30:00.000000 UTC\n\tTriager: test.reporter13@hpe.com\n\tController  Types: Tornado\n\tNumber  Of  Nodes: 4\n\tFailure  Type: software\n\tBuild  Version: 4.6.5\n\tNFS Path: /net/cxo-odin-nfs/exports/odin10/fake13mno131/2024-04-15_07-00-00_131313\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake013\n\tSignature: RC FC multipath failover loses all active paths when two switches fail simultaneously\n\nBug Summary:\n    RCopyFCMultiPath: RC group lost all paths during dual-switch failure\n\nTerm Error:\n    *** TermError: All paths to RC target lost. RC group mockRCGFC2 degraded.\n\nHost Info:\n    Array type: Tornado/8440 (3parH2)\n    Host: mockring13.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-04-16T09:30:00Z",
+                             "text":  "Corner case - simultaneous failure of both FC switches removes all paths. The RC path selection algorithm does not handle zero-path state gracefully and marks the group as immediately failed rather than entering a retry state."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-04-18T10:00:00Z",
+                             "text":  "Proposed fix: add a zero-path recovery state in the RC FC path manager that retries path discovery every 30 seconds for up to 10 minutes before declaring the group failed. This avoids immediate degradation under transient dual-switch failure."
+                         }
+                     ],
+        "Bug Name":  "RC FC Multipath Lost on Dual-Switch Failure",
+        "Tests":  [
+                      {
+                          "test_name":  "RCopyFCMultiPath.py",
+                          "station_name":  "mockring13",
+                          "build_version":  "4.6.5",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "RCopyFCMultiPathDualSwitch.py",
+                          "station_name":  "mockring17",
+                          "build_version":  "4.6.5",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "RCopyFCZeroPathRecovery.py",
+                          "station_name":  null,
+                          "build_version":  "4.6.5",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "RCopyFCPathRecovery.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "RCopyFCSwitchFail.py",
+                          "station_name":  "mockring15",
+                          "build_version":  "4.6.5",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100014",
+        "Product":  "System Manager",
+        "Component":  "CLI",
+        "Status":  "REPRODUCE",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter14@hpe.com",
+        "Developer Progress":  "Triaging",
+        "Priority":  "P2",
+        "Severity":  "major",
+        "Data Outage":  "not applicable",
+        "Whiteboard":  "SM CLI mock_bug",
+        "Build":  "4.6.5",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter14@hpe.com",
+                             "creation_time":  "2024-04-20T08:30:00Z",
+                             "text":  "Test  Name: testsrc/SystemManager/CLI/CLIParsing/CLIParseEdgeCases/CLIParseEdgeCases.py\n\tTest  Plan  Name: CEE_Integ_SM_CLI_465\n\tTest  Ring  Name: mockring14\n\tExecution  Start: 2024-04-20 08:30:00.000000 UTC\n\tExecution  End: 2024-04-20 09:45:00.000000 UTC\n\tTriager: test.reporter14@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 4.6.5\n\tNFS Path: /net/cxo-odin-nfs/exports/odin11/fake14pqr141/2024-04-20_08-30-00_141414\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake014\n\tSignature: CLI command showvv -d hangs indefinitely when VV count exceeds 5000\n\nBug Summary:\n    CLIParseEdgeCases: showvv -d hangs when VV count \u003e 5000\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)\n    Host: mockring14.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-04-21T10:00:00Z",
+                             "text":  "I think this comes under the CLI parser team. The -d flag triggers a detailed VV info fetch that is not paginated. Above 5000 VVs the response buffer overflows and CLI hangs. Routing to CLI parser owners."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "cli.parser.team@hpe.com",
+                             "creation_time":  "2024-04-22T13:00:00Z",
+                             "text":  "Confirmed. Fix adds automatic pagination when VV count exceeds 1000. Patch in review at r/90123. Workaround: use \u0027showvv -d | head -n 200\u0027 to limit output."
+                         }
+                     ],
+        "Bug Name":  "showvv -d Hangs with High VV Count",
+        "Tests":  [
+                      {
+                          "test_name":  "CLIParseEdgeCases.py",
+                          "station_name":  "mockring14",
+                          "build_version":  "4.6.5",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "CLIParseEdgeCasesLargeVV.py",
+                          "station_name":  "mockring18",
+                          "build_version":  "4.6.5",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "CLIShowvvPagination.py",
+                          "station_name":  null,
+                          "build_version":  "4.6.5",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100015",
+        "Product":  "Volume Manager",
+        "Component":  "VLUN",
+        "Status":  "VERIFIED",
+        "Assignee":  "akshay.shankar@hpe.com",
+        "Reporter":  "test.reporter15@hpe.com",
+        "Developer Progress":  "Fixed On Branch",
+        "Priority":  "P1",
+        "Severity":  "critical",
+        "Data Outage":  "Data inconsistent",
+        "Whiteboard":  "VM VLUN mock_bug",
+        "Build":  "3.3.2.100",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter15@hpe.com",
+                             "creation_time":  "2024-01-15T09:00:00Z",
+                             "text":  "Test  Name: testsrc/VolumeManager/VLUN/VLUNPresentation/VLUNPresentation.py\n\tTest  Plan  Name: CEE_Integ_VLUN_332\n\tTest  Ring  Name: mockring15\n\tExecution  Start: 2024-01-15 09:00:00.000000 UTC\n\tExecution  End: 2024-01-15 10:15:00.000000 UTC\n\tTriager: test.reporter15@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 4\n\tFailure  Type: software\n\tBuild  Version: 3.3.2.100\n\tSignature: VLUN mapping inconsistency after host initiator group modification\n\nBug Summary:\n    VLUNPresentation: VLUN map inconsistent after modifying host initiator group membership\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-01-16T11:00:00Z",
+                             "text":  "Root cause: when a WWN is removed from a host initiator group, the VLUN export table is not immediately updated. The stale entry persists until the next SM refresh (default 60s). Fix: trigger an immediate VLUN table refresh on initiator group modification. Patch at r/78234."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "qa.team@hpe.com",
+                             "creation_time":  "2024-01-18T14:00:00Z",
+                             "text":  "Fix verified. VLUN table updates within 1 second of initiator group modification. Marking VERIFIED."
+                         }
+                     ],
+        "Bug Name":  "VLUN Map Inconsistent After Initiator Group Change",
+        "Tests":  [
+                      {
+                          "test_name":  "VLUNPresentation.py",
+                          "station_name":  "mockring15",
+                          "build_version":  "3.3.2.100",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "VLUNPresentationGroupChange.py",
+                          "station_name":  "mockring19",
+                          "build_version":  "3.3.2.100",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "VLUNRefreshLatency.py",
+                          "station_name":  null,
+                          "build_version":  "3.3.2.100",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "VLUNMapRefresh.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100016",
+        "Product":  "InForm Storage Drivers",
+        "Component":  "FC",
+        "Status":  "REPRODUCE",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter16@hpe.com",
+        "Developer Progress":  "Investigating",
+        "Priority":  "P1",
+        "Severity":  "critical",
+        "Data Outage":  "Data unavailable",
+        "Whiteboard":  "ISD FC mock_bug",
+        "Build":  "3.3.2.100",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter16@hpe.com",
+                             "creation_time":  "2024-02-25T07:00:00Z",
+                             "text":  "Test  Name: testsrc/InFormDriver/FC/FCDriverLIP/FCDriverLIP.py\n\tTest  Plan  Name: CEE_Integ_ISD_FC_332\n\tTest  Ring  Name: mockring16\n\tExecution  Start: 2024-02-25 07:00:00.000000 UTC\n\tExecution  End: 2024-02-25 08:30:00.000000 UTC\n\tTriager: test.reporter16@hpe.com\n\tController  Types: Merlin1S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.3.2.100\n\tNFS Path: /net/cxo-odin-nfs/exports/odin14/fake16stu161/2024-02-25_07-00-00_161616\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake016\n\tSignature: FC port 1:3:1 fails to come back online after LIP event\n\nBug Summary:\n    FCDriverLIP: FC port 1:3:1 still offline 90 seconds after LIP event\n\nTerm Error:\n    *** TermError: FC port 1:3:1 still offline 90 seconds post LIP event\n\nHost Info:\n    Array type: Merlin1S/C630 (primera)\n    Host: mockring16.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-02-26T10:00:00Z",
+                             "text":  "Seen on port 1:3:1 specifically. LIP recovery handler in FC driver does not reset the port state machine if LIP event is received during an active IO. Investigating whether issue is in the driver or HBA firmware."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-02-28T09:00:00Z",
+                             "text":  "I have analyzed the bug. I feel like we need more runs to determine if this is port-specific or affects all FC ports. Possible fix: update LIP handler to always reset port state regardless of active IO."
+                         }
+                     ],
+        "Bug Name":  "FC Port Stays Offline After LIP Event",
+        "Tests":  [
+                      {
+                          "test_name":  "FCDriverLIP.py",
+                          "station_name":  "mockring16",
+                          "build_version":  "3.3.2.100",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "FCDriverLIPRecovery.py",
+                          "station_name":  "mockring20",
+                          "build_version":  "3.3.2.100",
+                          "configuration":  null
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100017",
+        "Product":  "Serviceability",
+        "Component":  "Logging",
+        "Status":  "OPEN",
+        "Assignee":  "akshay.shankar@hpe.com",
+        "Reporter":  "test.reporter17@hpe.com",
+        "Developer Progress":  "No progress available",
+        "Priority":  "P2",
+        "Severity":  "normal",
+        "Data Outage":  "---",
+        "Whiteboard":  "",
+        "Build":  "3.3.2.100",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter17@hpe.com",
+                             "creation_time":  "2024-03-30T08:00:00Z",
+                             "text":  "Test  Name: testsrc/Serviceability/Logging/LogRotationTest/LogRotationTest.py\n\tTest  Plan  Name: CEE_Integ_Svc_Log_332\n\tTest  Ring  Name: mockring17\n\tExecution  Start: 2024-03-30 08:00:00.000000 UTC\n\tExecution  End: 2024-03-30 09:00:00.000000 UTC\n\tTriager: test.reporter17@hpe.com\n\tController  Types: Merlin1S\n\tNumber  Of  Nodes: 2\n\tBuild  Version: 3.3.2.100\n\tSignature: Log rotation does not compress old log files when disk usage exceeds 85%\n\nBug Summary:\n    LogRotationTest: Old log files not compressed during high-disk-pressure log rotation\n\nHost Info:\n    Array type: Merlin1S/C630 (primera)"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-03-31T10:00:00Z",
+                             "text":  "Newly opened. The logrotate config does not include the compress directive for the high-disk-usage rotation path. Simple config fix needed. Will submit patch."
+                         }
+                     ],
+        "Bug Name":  "Log Rotation Misses Compression Under Disk Pressure",
+        "Tests":  [
+                      {
+                          "test_name":  "LogRotationTest.py",
+                          "station_name":  "mockring17",
+                          "build_version":  "3.3.2.100",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "LogRotationHighDiskUsage.py",
+                          "station_name":  "mockring21",
+                          "build_version":  "3.3.2.100",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "LogCompressPolicy.py",
+                          "station_name":  null,
+                          "build_version":  "3.3.2.100",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "LogRotationCompress.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "LogRotationDiskPressure.py",
+                          "station_name":  "mockring19",
+                          "build_version":  "3.3.2.100",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100018",
+        "Product":  "VASA/VVol",
+        "Component":  "General",
+        "Status":  "CLOSED",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter18@hpe.com",
+        "Developer Progress":  "Rti Submitted",
+        "Priority":  "P2",
+        "Severity":  "trivial",
+        "Data Outage":  "unknown",
+        "Whiteboard":  "",
+        "Build":  "4.5.0.200",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter18@hpe.com",
+                             "creation_time":  "2024-01-20T08:00:00Z",
+                             "text":  "Test  Name: testsrc/VASA/VVolGeneral/VVolCreate/VVolCreate.py\n\tTest  Plan  Name: CEE_Integ_VVOL_450\n\tTest  Ring  Name: mockring18\n\tExecution  Start: 2024-01-20 08:00:00.000000 UTC\n\tExecution  End: 2024-01-20 09:00:00.000000 UTC\n\tTriager: test.reporter18@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 2\n\tBuild  Version: 4.5.0.200\n\tSignature: VVol created successfully on array but not visible in vCenter datastore\n\nBug Summary:\n    VVolCreate: VVol created on array but not registered in vCenter after VASA response\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-01-21T11:00:00Z",
+                             "text":  "Root cause: VASA provider returns HTTP 200 before completing VVol registration in vCenter. The async registration call is not awaited. Fix: make registration synchronous before sending response. RTI submitted."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-01-24T08:00:00Z",
+                             "text":  "RTI accepted. Fix in 4.5.0.203. Closing."
+                         }
+                     ],
+        "Bug Name":  "VVol Created but Not Visible in vCenter",
+        "Tests":  [
+                      {
+                          "test_name":  "VVolCreate.py",
+                          "station_name":  "mockring18",
+                          "build_version":  "4.5.0.200",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "VVolCreateVCenterRegister.py",
+                          "station_name":  "mockring22",
+                          "build_version":  "4.5.0.200",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "VVolProviderSyncWait.py",
+                          "station_name":  null,
+                          "build_version":  "4.5.0.200",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100019",
+        "Product":  "System Manager",
+        "Component":  "Web UI",
+        "Status":  "REPRODUCE",
+        "Assignee":  "akshay.shankar@hpe.com",
+        "Reporter":  "test.reporter19@hpe.com",
+        "Developer Progress":  "Fix Exists",
+        "Priority":  "P1",
+        "Severity":  "major",
+        "Data Outage":  "---",
+        "Whiteboard":  "SM WebUI mock_bug",
+        "Build":  "4.5.0.200",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter19@hpe.com",
+                             "creation_time":  "2024-05-01T08:30:00Z",
+                             "text":  "Test  Name: testsrc/SystemManager/WebUI/DashboardLoadTest/DashboardLoadTest.py\n\tTest  Plan  Name: CEE_Integ_SM_WebUI_450\n\tTest  Ring  Name: mockring19\n\tExecution  Start: 2024-05-01 08:30:00.000000 UTC\n\tExecution  End: 2024-05-01 09:45:00.000000 UTC\n\tTriager: test.reporter19@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 4\n\tFailure  Type: software\n\tBuild  Version: 4.5.0.200\n\tNFS Path: /net/cxo-odin-nfs/exports/odin17/fake19vwx191/2024-05-01_08-30-00_191919\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake019\n\tSignature: Web UI performance graphs fail to load on 4-node system dashboard\n\nBug Summary:\n    DashboardLoadTest: Performance graph widget fails to render on 4-node system\n\nTerm Error:\n    JavaScript TypeError: Cannot read properties of undefined (reading \u0027nodePerf\u0027) in dashboard.js:1204\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)\n    Host: mockring19.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-05-02T10:00:00Z",
+                             "text":  "Root cause: dashboard.js assumes max 2 nodes when building the nodePerf structure. On 4-node systems, nodes 3 and 4 return undefined. Fix: change fixed 2-element array to a dynamic map keyed by node ID. Fix exists in PR #4421."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "qa.team@hpe.com",
+                             "creation_time":  "2024-05-04T14:00:00Z",
+                             "text":  "Fix verified on 2-node, 4-node, and 8-node configurations. Dashboard renders correctly in all cases."
+                         }
+                     ],
+        "Bug Name":  "Dashboard Graph Widget Fails on 4-Node Systems",
+        "Tests":  [
+                      {
+                          "test_name":  "DashboardLoadTest.py",
+                          "station_name":  "mockring19",
+                          "build_version":  "4.5.0.200",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "DashboardLoadNodePerf4Node.py",
+                          "station_name":  "mockring23",
+                          "build_version":  "4.5.0.200",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "DashboardWidgetRenderMap.py",
+                          "station_name":  null,
+                          "build_version":  "4.5.0.200",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "DashboardNodePerfMap.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100020",
+        "Product":  "RC Transport",
+        "Component":  "iSCSI",
+        "Status":  "OPEN",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter20@hpe.com",
+        "Developer Progress":  "Triaging",
+        "Priority":  "P2",
+        "Severity":  "major",
+        "Data Outage":  "not applicable",
+        "Whiteboard":  "RCT iSCSI mock_bug",
+        "Build":  "4.5.0.200",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter20@hpe.com",
+                             "creation_time":  "2024-05-10T07:00:00Z",
+                             "text":  "Test  Name: testsrc/RCTransport/iSCSI/RCTiSCSIReconnect/RCTiSCSIReconnect.py\n\tTest  Plan  Name: CEE_Integ_RCT_iSCSI_450\n\tTest  Ring  Name: mockring20\n\tExecution  Start: 2024-05-10 07:00:00.000000 UTC\n\tExecution  End: 2024-05-10 08:20:00.000000 UTC\n\tTriager: test.reporter20@hpe.com\n\tController  Types: Merlin1S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 4.5.0.200\n\tNFS Path: /net/cxo-odin-nfs/exports/odin18/fake20yza201/2024-05-10_07-00-00_202020\n\tOdin  Link: https://cxo-odin.cxo.storage.hpecorp.net/bi/result/fake020\n\tSignature: iSCSI RC Transport fails to reconnect after target portal reboot\n\nBug Summary:\n    RCTiSCSIReconnect: iSCSI RC session does not re-establish after target portal restart\n\nHost Info:\n    Array type: Merlin1S/C630 (primera)\n    Host: mockring20.cxo.storage.hpecorp.net"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-05-11T10:00:00Z",
+                             "text":  "I think this comes under RC transport/iSCSI session management. The iSCSI initiator does not retry login phase after a target portal restart if the TCP connection is reset cleanly (FIN not RST). The retry logic only triggers on RST. Routing to iSCSI session team."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "iscsi.team@hpe.com",
+                             "creation_time":  "2024-05-13T13:00:00Z",
+                             "text":  "Confirmed. Fix: also start the reconnect timer on clean TCP FIN from target portal. Patch under review."
+                         }
+                     ],
+        "Bug Name":  "iSCSI RC Session Fails to Reconnect After Reboot",
+        "Tests":  [
+                      {
+                          "test_name":  "RCTiSCSIReconnect.py",
+                          "station_name":  "mockring20",
+                          "build_version":  "4.5.0.200",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "RCTiSCSIReconnectPortalReboot.py",
+                          "station_name":  "mockring1",
+                          "build_version":  "4.5.0.200",
+                          "configuration":  null
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100021",
+        "Product":  "VV Management",
+        "Component":  "Snapshot",
+        "Status":  "REPRODUCE",
+        "Assignee":  "external.engineer@example.com",
+        "Reporter":  "test.reporter21@hpe.com",
+        "Developer Progress":  "Investigating",
+        "Priority":  "P1",
+        "Severity":  "critical",
+        "Data Outage":  "Data unavailable",
+        "Whiteboard":  "external only - should not appear in HPE engineer filter",
+        "Build":  "3.4.0.50",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter21@hpe.com",
+                             "creation_time":  "2024-06-01T08:00:00Z",
+                             "text":  "Test  Name: testsrc/VVManagement/Snapshot/SnapExpiry/SnapExpiry.py\n\tTest  Plan  Name: CEE_Integ_Snap_340\n\tTest  Ring  Name: mockring21\n\tExecution  Start: 2024-06-01 08:00:00.000000 UTC\n\tExecution  End: 2024-06-01 09:15:00.000000 UTC\n\tTriager: test.reporter21@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.4.0.50\n\tSignature: Snapshot expiry does not reclaim space when snap count exceeds retention limit\n\nBug Summary:\n    SnapExpiry: Space not reclaimed when snapshots exceed retention policy count limit\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "external.engineer@example.com",
+                             "creation_time":  "2024-06-02T11:00:00Z",
+                             "text":  "The snap expiry daemon marks snapshots for deletion but the space reclamation job (snapclean) is not triggered automatically afterward. Fix: invoke snapclean inline after expiry marks snaps for deletion instead of waiting for the next scheduled run."
+                         }
+                     ],
+        "Bug Name":  "Snapshot Expiry Does Not Reclaim Space",
+        "Tests":  [
+                      {
+                          "test_name":  "SnapExpiry.py",
+                          "station_name":  "mockring21",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "SnapExpiryRetentionLimit.py",
+                          "station_name":  "mockring2",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "SnapCleanTrigger.py",
+                          "station_name":  null,
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "SnapExpiryReclaim.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "SnapExpiryRetention.py",
+                          "station_name":  "mockring23",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100022",
+        "Product":  "Remote Copy",
+        "Component":  "IP",
+        "Status":  "VERIFIED",
+        "Assignee":  "akshay.shankar@hpe.com",
+        "Reporter":  "test.reporter22@hpe.com",
+        "Developer Progress":  "Fixed On Branch",
+        "Priority":  "P1",
+        "Severity":  "critical",
+        "Data Outage":  "Data inconsistent",
+        "Whiteboard":  "322MU6_Content_Propagated",
+        "Build":  "3.4.0.50",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter22@hpe.com",
+                             "creation_time":  "2024-05-20T07:00:00Z",
+                             "text":  "Test  Name: testsrc/RemoteCopy/IPTest/RCopyIPConsistency/RCopyIPConsistency.py\n\tTest  Plan  Name: CEE_Integ_RCopy_IP_340\n\tTest  Ring  Name: mockring22\n\tExecution  Start: 2024-05-20 07:00:00.000000 UTC\n\tExecution  End: 2024-05-20 08:45:00.000000 UTC\n\tTriager: test.reporter22@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.4.0.50\n\tSignature: RC IP group reports data inconsistency at \u003e 5% packet loss\n\nBug Summary:\n    RCopyIPConsistency: RC IP group data inconsistency under 5% packet loss\n\nHost Info:\n    Array type: Merlin2S/C650 (primera)"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "akshay.shankar@hpe.com",
+                             "creation_time":  "2024-05-21T09:00:00Z",
+                             "text":  "Root cause: RC IP transport does not retransmit missing packets when loss rate exceeds 3%. Fix: increase retransmission window and add packet-loss detection KVAR rcopy_ip_retx_threshold. Patch propagated to 3.2.2 MU6 branch."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "qa.team@hpe.com",
+                             "creation_time":  "2024-05-24T14:00:00Z",
+                             "text":  "Verified. With 10% simulated packet loss RC group stays consistent across 5 test runs. Marking VERIFIED."
+                         }
+                     ],
+        "Bug Name":  "RC IP Data Inconsistency Under Packet Loss",
+        "Tests":  [
+                      {
+                          "test_name":  "RCopyIPConsistency.py",
+                          "station_name":  "mockring22",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "RCopyIPPacketLossRetx.py",
+                          "station_name":  "mockring3",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "RCopyIPConsistencyLongRun.py",
+                          "station_name":  null,
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100023",
+        "Product":  "Volume Manager",
+        "Component":  "PD",
+        "Status":  "CLOSED",
+        "Assignee":  "vasanthakumar2@hpe.com",
+        "Reporter":  "test.reporter23@hpe.com",
+        "Developer Progress":  "Fixed On Branch",
+        "Priority":  "P2",
+        "Severity":  "enhancement",
+        "Data Outage":  "---",
+        "Whiteboard":  "",
+        "Build":  "3.4.0.50",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter23@hpe.com",
+                             "creation_time":  "2024-05-15T08:00:00Z",
+                             "text":  "Test  Name: testsrc/VolumeManager/PD/PDSparePromotion/PDSparePromotion.py\n\tTest  Plan  Name: CEE_Integ_VM_PD_340\n\tTest  Ring  Name: mockring23\n\tExecution  Start: 2024-05-15 08:00:00.000000 UTC\n\tExecution  End: 2024-05-15 09:00:00.000000 UTC\n\tTriager: test.reporter23@hpe.com\n\tController  Types: Merlin1S\n\tNumber  Of  Nodes: 2\n\tBuild  Version: 3.4.0.50\n\tSignature: Enhancement: PD spare promotion should prefer drives with matching RPM and capacity\n\nBug Summary:\n    PDSparePromotion: Spare PD selected by capacity only, ignoring RPM class match\n\nHost Info:\n    Array type: Merlin1S/C630 (primera)"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vasanthakumar2@hpe.com",
+                             "creation_time":  "2024-05-16T11:00:00Z",
+                             "text":  "Enhancement: spare selection algorithm should score by (1) capacity match, (2) RPM match, (3) drive type (SSD \u003e NL-SAS \u003e SAS). Currently only capacity is considered. Patch adds weighted scoring. Fixed on 3.4.0 branch."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "qa.team@hpe.com",
+                             "creation_time":  "2024-05-18T14:00:00Z",
+                             "text":  "Enhancement verified. Mixed RPM pool now correctly promotes the RPM-matching spare first. Closing."
+                         }
+                     ],
+        "Bug Name":  "PD Spare Promotion Ignores RPM Class Match",
+        "Tests":  [
+                      {
+                          "test_name":  "PDSparePromotion.py",
+                          "station_name":  "mockring23",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "PDSparePromotionRPMMatch.py",
+                          "station_name":  "mockring4",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "PDSpareWeightedSelection.py",
+                          "station_name":  null,
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "PDScrubRetry.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      }
+                  ]
+    }
+]
