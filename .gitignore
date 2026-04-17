@@ -1,0 +1,12 @@
+.env
+venv/
+__pycache__/
+*.pyc
+
+# Company-sensitive data — must NEVER be committed
+chathpe_creds.json
+mock_bugs.json
+*.log
+
+# Local SQLite database (dev only)
+rro_local.db
