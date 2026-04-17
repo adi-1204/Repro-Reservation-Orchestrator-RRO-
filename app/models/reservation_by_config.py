@@ -11,6 +11,8 @@ class ReservationByConfig(db.Model):
     code_floor = db.Column(db.String(100))
     number_of_pds = db.Column(db.Integer, nullable=False)
     rc = db.Column(db.Boolean, default=False)
+    status = db.Column(db.Enum('pending', 'completed', 'rejected'),nullable=False,default='pending')
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref=db.backref('reservations_by_config', lazy=True))

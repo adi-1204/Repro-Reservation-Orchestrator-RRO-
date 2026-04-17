@@ -211,6 +211,13 @@
     box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
 }
 
+.run-input:disabled {
+    background: #f8fafc;
+    color: #94a3b8;
+    cursor: not-allowed;
+    border-color: #e2e8f0;
+}
+
 /* ── Dropdowns ── */
 .run-dropdown {
     position: absolute;

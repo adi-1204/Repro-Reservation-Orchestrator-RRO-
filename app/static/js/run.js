@@ -26,6 +26,7 @@ let stationOptions = [];
 let bugTests = [];
 let allBugs = [];
 let runHistory = [];
+let completedReservationStations = []; // Track stations from completed reservations
 
 function getAuthHeaders(h = {}) {
     return window.RROAuth ? window.RROAuth.getAuthHeaders(h) : h;
@@ -177,18 +178,46 @@ function selectBug(item) {
     state.selectedTests = [];
     state.selectedStation = '';
     stationOptions = [];
+    completedReservationStations = [];
     renderSelectedTags();
     renderSelectedStationTags();
+    
+    // Reset station input state
+    const stationInput = document.getElementById('stationRunInput');
+    if (stationInput) {
+        stationInput.value = '';
+        stationInput.disabled = false;
+        stationInput.placeholder = 'Type or select a station...';
+    }
+    
     loadBugTests(item.dataset.bugId);
 }
 
 async function loadBugTests(bugCode) {
     bugTests = [];
     stationOptions = [];
+    completedReservationStations = [];
+
     const data = await apiFetch(`/api/bugs/${bugCode}/tests`);
+
     if (data && Array.isArray(data.tests)) {
+        // All tests
         bugTests = data.tests.map(t => t.test_name).filter(Boolean);
-        stationOptions = [...new Set(data.tests.map(t => t.station_name).filter(Boolean))].sort();
+    }
+
+    // ✅ Load stations from completed reservations for this bug
+    try {
+        const reservationData = await apiFetch(`/api/bugs/${bugCode}/reservation-stations`);
+        if (reservationData && reservationData.has_completed_reservation) {
+            // Use ONLY stations from completed reservations
+            completedReservationStations = reservationData.stations || [];
+            stationOptions = [...completedReservationStations].sort();
+            console.log(`[Run] Loaded ${stationOptions.length} stations from completed reservations for bug ${bugCode}`);
+        } else {
+            console.log(`[Run] No completed reservations for bug ${bugCode} - no stations available`);
+        }
+    } catch (err) {
+        console.error(`[Run] Failed to load reservation stations for bug ${bugCode}:`, err);
     }
 }
 
@@ -256,9 +285,9 @@ function initBugReproCombobox() {
 }
 
 async function loadAllBugs() {
-    const data = await apiFetch('/api/bugs');
+    const data = await apiFetch('/api/bugs?my_only=true');
     if (!data) return;
-    allBugs = [...(data.repro || []), ...(data.test || [])];
+    allBugs = (data.repro || []);
     allSystemTestNames = [];
     allBugs.forEach(b => {
         if (Array.isArray(b.tests)) allSystemTestNames.push(...b.tests);
@@ -414,25 +443,34 @@ function renderSelectedStationTags() {
 
 function renderStationDropdown(query = '') {
     const dd = document.getElementById('stationRunDropdown');
-    if (!dd) return;
+    const input = document.getElementById('stationRunInput');
+    if (!dd || !input) return;
+
+    // If no stations from completed reservations, hide dropdown and disable input
+    if (!stationOptions.length) {
+        dd.classList.add('hidden');
+        input.placeholder = 'No completed reservations for this bug';
+        input.disabled = true;
+        return;
+    }
+
+    // Enable input if stations are available
+    input.disabled = false;
+    input.placeholder = 'Type or select a station...';
 
     const q = query.trim().toLowerCase();
     const options = getStationOptionsForRun();
     const filtered = (q ? options.filter(s => s.toLowerCase().includes(q)) : options).slice(0, 30);
 
-    if (!filtered.length) {
-        dd.innerHTML = '<div class="run-dropdown-empty">No matching stations</div>';
-    } else {
-        dd.innerHTML = filtered.map(station => {
-            const isSelected = state.selectedStation === station;
-            return `
-                <div class="run-dropdown-item ${isSelected ? 'selected' : ''}" data-station="${esc(station)}">
-                    <span>${esc(station)}</span>
-                    ${isSelected ? '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7l4 4 6-6" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
-                </div>
-            `;
-        }).join('');
-    }
+    dd.innerHTML = filtered.map(station => {
+        const isSelected = state.selectedStation === station;
+        return `
+            <div class="run-dropdown-item ${isSelected ? 'selected' : ''}" data-station="${esc(station)}">
+                <span>${esc(station)}</span>
+                ${isSelected ? '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7l4 4 6-6" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
+            </div>
+        `;
+    }).join('');
 
     dd.querySelectorAll('.run-dropdown-item').forEach(item => {
         item.addEventListener('click', () => {
@@ -594,7 +632,7 @@ function getActiveRunFields() {
         }
     }
 
-    const provisionSetup = isQuick ? '' : state.coProvisionSetup.map(v => v.replace(/\s*★\s*$/, '')).join(',');
+    const provisionSetup = isQuick ? '' : state.coProvisionSetup.join(',');
     const doCheckoutUpdate = isQuick ? false : Boolean(container.querySelector('#coCheckout')?.checked);
 
     return {
@@ -624,6 +662,15 @@ function buildRunPayloadFromActiveTab() {
 }
 
 async function handleRunSubmit() {
+    if (!validateSelections()) return;
+    const sameBugStation = runHistory.some(r =>
+        r.bug_id === state.bugToRepro?.bug_id &&
+        r.station_name === state.selectedStation
+    );
+    if (sameBugStation) {
+        showToast('A run for this bug on this station already exists.', 'error');
+        return;
+    }
     if (!validateBugAndTests()) return;
 
     const payload = buildRunPayloadFromActiveTab();
@@ -655,9 +702,9 @@ function initQuickRun() {
 // ═══════════════════════════════════════════
 
 /**
- * Provision setup validation (backend-style check):
- * - The raw value entered by the user must end with '.*'
- * - If it does → strip '.*', add '★' at the end, store and display
+ * Provision setup validation:
+ * - The raw value entered by the user must end with '.star'
+ * - If it does → add the value directly to the table without any changes
  * - If it doesn't → show an error, do not add the item
  */
 function tryAddProvision(rawVal) {
@@ -666,8 +713,8 @@ function tryAddProvision(rawVal) {
 
     const errEl = document.getElementById('errProvisionFormat');
 
-    // Check: value must end with .*
-    if (!val.endsWith('.*')) {
+    // Check: value must end with .star
+    if (!val.endsWith('.star')) {
         errEl.classList.remove('hidden');
         setTimeout(() => errEl.classList.add('hidden'), 3500);
         return false;
@@ -675,12 +722,9 @@ function tryAddProvision(rawVal) {
 
     errEl.classList.add('hidden');
 
-    // Strip '.*' from the end, then append '★' for display
-    const base = val.slice(0, -2);          // remove the trailing .*
-    const displayVal = base + ' ★';
-
-    if (!state.coProvisionSetup.includes(displayVal)) {
-        state.coProvisionSetup.push(displayVal);
+    // Add the value directly without any changes
+    if (!state.coProvisionSetup.includes(val)) {
+        state.coProvisionSetup.push(val);
         renderProvisionTags();
     }
 
@@ -750,6 +794,26 @@ function validateBugAndTests() {
         ok = false;
     }
     return ok;
+}
+
+function validateSelections() {
+    const bug = state.bugToRepro?.bug_id;
+    const station = state.selectedStation;
+    const tests = state.selectedTests;
+
+    // Case 1: Station == Test
+    if (tests.map(t => t.toLowerCase()).includes(station.toLowerCase())) {
+        showToast("Station and Test cannot be the same", "error");
+        return false;
+    }
+
+    // Case 2: Bug == Station
+    if (bug === station) {
+        showToast("Bug and Station cannot be the same", "error");
+        return false;
+    }
+
+    return true;
 }
 
 // ═══════════════════════════════════════════

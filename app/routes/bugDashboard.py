@@ -11,6 +11,7 @@ from app.models.workgroup import Workgroup
 from app.models.workgroupAssignment import WorkgroupAssignment
 from app.auth_utils import get_current_auth_token, get_current_role, get_current_user, get_current_user_id
 from sqlalchemy import select, or_
+from app.models.reservation_by_name import ReservationByName
 
 bug = Blueprint("bugDashboard", __name__)
 
@@ -361,6 +362,17 @@ def get_bug_tests(bug_id):
 
     bug_tests = BugTest.query.filter_by(bug_id=bug_record.bug_id).all()
 
+    completed_rows = ReservationByName.query.filter(
+        ReservationByName.bug_id == bug_record.bug_id,
+        ReservationByName.status == "completed"
+    ).all()
+
+    completed_station_set = set()
+
+    for row in completed_rows:
+        stations = [s.strip() for s in (row.stations or "").split(',') if s.strip()]
+        completed_station_set.update(stations)
+
     return jsonify({
         "bug_id": bug_record.bug_id,
         "bug_name": bug_record.bug_name,
@@ -369,8 +381,7 @@ def get_bug_tests(bug_id):
                 "id": bug_test.id,
                 "test_name": bug_test.test_name,
                 "station_name": bug_test.station_name,
-                "build_version": bug_test.build_id,
-                "configuration": bug_test.configuration
+                "completed": bug_test.station_name in completed_station_set   # ✅ ADD THIS
             }
             for bug_test in bug_tests
         ]
@@ -393,6 +404,38 @@ def get_stations():
     )
     stations = sorted([s[0] for s in station_names if s[0]])
     return jsonify({"stations": stations})
+
+
+# --------------------------------------------------
+# GET COMPLETED RESERVATION STATIONS FOR A BUG
+# --------------------------------------------------
+@bug.route("/api/bugs/<string:bug_id>/reservation-stations", methods=["GET"])
+def get_bug_reservation_stations(bug_id):
+    """Get stations from completed 'by_name' reservations for a specific bug."""
+    from app.models.reservation_by_name import ReservationByName
+    
+    user_id = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    # Find completed reservations for this bug by the current user
+    completed_reservations = ReservationByName.query.filter_by(
+        user_id=user_id,
+        bug_id=bug_id,
+        status='completed'
+    ).all()
+    
+    # Extract all stations from completed reservations
+    stations = set()
+    for reservation in completed_reservations:
+        if reservation.stations:
+            station_list = [s.strip() for s in reservation.stations.split(',') if s.strip()]
+            stations.update(station_list)
+    
+    return jsonify({
+        "stations": sorted(list(stations)),
+        "has_completed_reservation": len(stations) > 0
+    })
 
 
 # --------------------------------------------------
@@ -441,7 +484,8 @@ def get_reservations():
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "bug_id": row.bug_id,
             "stations": stations,
-            "specify_station": bool(row.specify_station)
+            "specify_station": bool(row.specify_station),
+            "status": row.status   # ✅ ADD THIS
         })
 
     for row in by_config:
@@ -453,7 +497,8 @@ def get_reservations():
             "number_of_nodes": row.number_of_nodes,
             "code_floor": row.code_floor,
             "number_of_pds": row.number_of_pds,
-            "rc": bool(row.rc)
+            "rc": bool(row.rc),
+            "status": row.status   # ✅ ADD THIS
         })
 
     reservations.sort(key=lambda r: r.get("created_at") or "", reverse=True)
@@ -490,6 +535,7 @@ def create_reservation():
                 bug_id=data.get('bug_id'),
                 stations=stations_str,
                 specify_station=data.get('specify_station', False),
+                status='completed',   # or 'pending'
                 created_at=datetime.now()
             )
             db.session.add(new_res)
@@ -508,6 +554,7 @@ def create_reservation():
                 code_floor=data.get('code_floor'),
                 number_of_pds=data.get('number_of_pds'),
                 rc=data.get('rc', False),
+                status='pending',   # ✅ ADD THIS
                 created_at=datetime.now()
             )
             db.session.add(new_res)

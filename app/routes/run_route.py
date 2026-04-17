@@ -79,6 +79,7 @@ def submit_run():
 
     data = request.get_json(silent=True) or {}
 
+
     required_fields = ["bug_id", "run_type", "run_mode"]
     missing = [field for field in required_fields if data.get(field) in (None, "")]
     if missing:
@@ -128,6 +129,28 @@ def submit_run():
         return jsonify({"success": False, "error": "Please select at least one station"}), 400
     if "," in station_name_value:
         return jsonify({"success": False, "error": "Please select only one station"}), 400
+    
+    
+    # Normalize
+    test_name_value = _normalize_selection(data.get("test_name"))
+    station_name_value = _normalize_selection(data.get("station_name"))
+    bug_id_val = str(data.get("bug_id", "")).strip()
+
+    # ❌ Case 1: Station == Test
+    if station_name_value and test_name_value:
+        test_list = [t.strip() for t in test_name_value.split(",")]
+        if station_name_value in test_list:
+            return jsonify({
+                "success": False,
+                "error": "Station and Test cannot be the same"
+            }), 400
+
+    # ❌ Case 2: Bug == Station
+    if bug_id_val == station_name_value:
+        return jsonify({
+            "success": False,
+            "error": "Bug and Station cannot be the same"
+        }), 400
 
     runs_for_bug_and_station = RunParameter.query.filter_by(
         bug_id=bug.bug_id,
