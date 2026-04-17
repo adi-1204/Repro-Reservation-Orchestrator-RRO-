@@ -203,6 +203,106 @@ async function refreshAll() {
     await Promise.all([loadBugsData(), loadReservationsData()]);
 }
 
+const RESERVATION_TTL_MS = 48 * 60 * 60 * 1000;
+const CANCELLED_RESERVATIONS_KEY = 'rro.cancelledReservations';
+const DISMISSED_RESERVATIONS_KEY = 'rro.dismissedReservations';
+
+function getCancelledReservationMap() {
+    try {
+        const raw = localStorage.getItem(CANCELLED_RESERVATIONS_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+}
+
+function getDismissedReservationMap() {
+    try {
+        const raw = localStorage.getItem(DISMISSED_RESERVATIONS_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+}
+
+function setCancelledReservation(type, id) {
+    const map = getCancelledReservationMap();
+    map[`${type}:${id}`] = Date.now();
+    localStorage.setItem(CANCELLED_RESERVATIONS_KEY, JSON.stringify(map));
+}
+
+function isCancelledReservation(type, id) {
+    const map = getCancelledReservationMap();
+    return Boolean(map[`${type}:${id}`]);
+}
+
+function isDismissedReservation(type, id) {
+    const map = getDismissedReservationMap();
+    return Boolean(map[`${type}:${id}`]);
+}
+
+function setDismissedReservation(type, id) {
+    const map = getDismissedReservationMap();
+    map[`${type}:${id}`] = Date.now();
+    localStorage.setItem(DISMISSED_RESERVATIONS_KEY, JSON.stringify(map));
+}
+
+function shouldShowReservationInUi(reservation) {
+    if (!reservation?.created_at) return true;
+    const createdAtTs = new Date(reservation.created_at).getTime();
+    if (Number.isNaN(createdAtTs)) return true;
+    if ((Date.now() - createdAtTs) >= RESERVATION_TTL_MS) return false;
+    return !isDismissedReservation(reservation.type, reservation.id);
+}
+
+function normalizeReservationStatus(reservation) {
+    if (isCancelledReservation(reservation.type, reservation.id)) return 'cancelled';
+
+    const backendStatus = String(reservation.status || '').toLowerCase();
+    if (backendStatus === 'rejected') return 'failed';
+
+    // For now, all active reservations are presented as reserved.
+    return 'reserved';
+}
+
+function getReservationStatusBadge(status) {
+    const label = status.charAt(0).toUpperCase() + status.slice(1);
+    return `<span class="reservation-status reservation-status--${status}">${escapeHtml(label)}</span>`;
+}
+
+async function cancelReservation(type, id) {
+    try {
+        const response = await fetch('/api/reservations/cancel', {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+            body: JSON.stringify({ type, id }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.error || `Failed to cancel reservation (HTTP ${response.status})`);
+        }
+
+        setCancelledReservation(type, id);
+        showToast('Reservation cancelled successfully', 'success');
+        await loadReservationsData();
+    } catch (err) {
+        console.error('Cancel reservation failed', err);
+        showToast(err.message || 'Failed to cancel reservation', 'error');
+    }
+}
+
+window.cancelReservation = cancelReservation;
+
+function removeReservationFromUi(type, id) {
+    setDismissedReservation(type, id);
+    showToast('Reservation removed from the UI', 'success');
+    loadReservationsData();
+}
+
+window.removeReservationFromUi = removeReservationFromUi;
+
 async function loadReservationsData() {
     const reservationsBody = document.getElementById('reservationsBody');
     const reservationsCount = document.getElementById('reservationsCount');
@@ -214,14 +314,15 @@ async function loadReservationsData() {
     const reservationsQs = reservationsParams.toString();
     const data = await apiFetch(reservationsQs ? `/api/reservations?${reservationsQs}` : '/api/reservations');
     const reservations = Array.isArray(data?.reservations) ? data.reservations : [];
+    const visibleReservations = reservations.filter(shouldShowReservationInUi);
 
-    if (!reservations.length) {
-        reservationsBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#64748b;">No reservations yet</td></tr>';
+    if (!visibleReservations.length) {
+        reservationsBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#64748b;">No reservations yet</td></tr>';
         if (reservationsCount) reservationsCount.textContent = '0 reservations';
         return;
     }
 
-    reservationsBody.innerHTML = reservations.map((r) => {
+    reservationsBody.innerHTML = visibleReservations.map((r) => {
         const isByName = r.type === 'by_name';
         const modeLabel = isByName ? 'By Name' : 'By Config';
         const primary = isByName ? (r.bug_id || '—') : (r.resource_group || '—');
@@ -230,19 +331,26 @@ async function loadReservationsData() {
             : `Nodes: ${r.number_of_nodes ?? '—'}, PDs: ${r.number_of_pds ?? '—'}, Type: ${r.rc ? 'RC' : 'Non-RC'}${r.code_floor ? `, Floor: ${r.code_floor}` : ''}`;
         const createdAt = r.created_at ? new Date(r.created_at).toLocaleString() : '—';
         const detailsEscaped = escapeHtml(String(details));
+        const uiStatus = normalizeReservationStatus(r);
+
+        const actionCell = uiStatus === 'cancelled'
+            ? `<button class="reservation-remove-btn" type="button" onclick="removeReservationFromUi('${escapeHtml(String(r.type))}', '${escapeHtml(String(r.id))}')">Remove</button>`
+            : `<button class="reservation-cancel-btn" type="button" onclick="cancelReservation('${escapeHtml(String(r.type))}', '${escapeHtml(String(r.id))}')">Cancel</button>`;
 
         return `
             <tr>
                 <td>${escapeHtml(String(modeLabel))}</td>
                 <td>${escapeHtml(String(primary))}</td>
                 <td class="reservation-details-cell" title="${detailsEscaped}">${detailsEscaped}</td>
+                <td>${getReservationStatusBadge(uiStatus)}</td>
+                <td>${actionCell}</td>
                 <td>${escapeHtml(String(createdAt))}</td>
             </tr>
         `;
     }).join('');
 
     if (reservationsCount) {
-        const count = reservations.length;
+        const count = visibleReservations.length;
         reservationsCount.textContent = `${count} ${count === 1 ? 'reservation' : 'reservations'}`;
     }
 }
@@ -942,10 +1050,35 @@ async function populateReserveDropdowns() {
         bugsParams.set('my_only', 'true');
         if (activeWorkgroupId) bugsParams.set('workgroup_id', activeWorkgroupId);
         const myBugsData = await apiFetch(`/api/bugs?${bugsParams.toString()}`);
+        const reproBugs = Array.isArray(myBugsData?.repro) ? myBugsData.repro : [];
         if (myBugsData) {
-            allBugOptions = (myBugsData.repro || []).map(b => ({ id: b.id, name: b.bug_name }));
+            allBugOptions = reproBugs.map(b => ({ id: b.id, name: b.bug_name }));
         } else {
             allBugOptions = [];
+        }
+
+        const buildIdSet = new Set(reproBugs.map(b => b.build).filter(Boolean));
+        const buildIds = Array.from(buildIdSet).sort();
+        const rgSelect = reserveDom.resourceGroup;
+        if (rgSelect) {
+            rgSelect.innerHTML = '<option value="">Select a Resource Group...</option>';
+            rgSelect.disabled = false;
+
+            if (buildIds.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.disabled = true;
+                opt.textContent = 'No repro resource groups available';
+                rgSelect.appendChild(opt);
+                rgSelect.disabled = true;
+            } else {
+                buildIds.forEach(buildId => {
+                    const opt = document.createElement('option');
+                    opt.value = buildId;
+                    opt.textContent = buildId;
+                    rgSelect.appendChild(opt);
+                });
+            }
         }
     } catch(err) {
         console.error("Failed to load bugs for reservation:", err);
@@ -959,27 +1092,6 @@ async function populateReserveDropdowns() {
     } catch(err) {
         console.error("Failed to load stations:", err);
         allStationOptions = [];
-    }
-
-    // Resource Group
-    const rgSelect = reserveDom.resourceGroup;
-    if (rgSelect) {
-        rgSelect.innerHTML = '<option value="">Select a Resource Group...</option>';
-        try {
-            const wgData = await apiFetch('/api/engineer/workgroups');
-            if (wgData && Array.isArray(wgData)) {
-                // Ensure unique non-empty release versions
-                const rgSet = new Set(wgData.map(w => w.release_version).filter(Boolean));
-                rgSet.forEach(rg => {
-                    const opt = document.createElement('option');
-                    opt.value = rg;
-                    opt.textContent = rg;
-                    rgSelect.appendChild(opt);
-                });
-            }
-        } catch(err) {
-            console.error("Failed to load workgroups for reservation:", err);
-        }
     }
 }
 

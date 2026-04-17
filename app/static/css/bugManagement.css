@@ -681,25 +681,37 @@ body {
 
 #reservationsSection .bugs-table th:nth-child(1),
 #reservationsSection .bugs-table td:nth-child(1) {
-    width: 14%;
+    width: 12%;
     text-align: center;
 }
 
 #reservationsSection .bugs-table th:nth-child(2),
 #reservationsSection .bugs-table td:nth-child(2) {
-    width: 28%;
+    width: 23%;
     text-align: left;
 }
 
 #reservationsSection .bugs-table th:nth-child(3),
 #reservationsSection .bugs-table td:nth-child(3) {
-    width: 40%;
+    width: 27%;
     text-align: left;
 }
 
 #reservationsSection .bugs-table th:nth-child(4),
 #reservationsSection .bugs-table td:nth-child(4) {
-    width: 18%;
+    width: 13%;
+    text-align: center;
+}
+
+#reservationsSection .bugs-table th:nth-child(5),
+#reservationsSection .bugs-table td:nth-child(5) {
+    width: 12%;
+    text-align: center;
+}
+
+#reservationsSection .bugs-table th:nth-child(6),
+#reservationsSection .bugs-table td:nth-child(6) {
+    width: 13%;
     text-align: center;
 }
 
@@ -730,6 +742,92 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
     line-height: 1.35;
+}
+
+.reservation-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 84px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    border: 1px solid transparent;
+}
+
+.reservation-status--reserved {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #86efac;
+}
+
+.reservation-status--pending {
+    background: #fef9c3;
+    color: #854d0e;
+    border-color: #fde68a;
+}
+
+.reservation-status--failed {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fecaca;
+}
+
+.reservation-status--cancelled {
+    background: #f1f5f9;
+    color: #334155;
+    border-color: #cbd5e1;
+}
+
+.reservation-cancel-btn {
+    border: 1px solid #fecaca;
+    background: #fff1f2;
+    color: #be123c;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.reservation-cancel-btn:hover {
+    background: #ffe4e6;
+    border-color: #fda4af;
+    color: #9f1239;
+}
+
+.reservation-cancel-btn:active {
+    transform: translateY(1px);
+}
+
+.reservation-remove-btn {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.reservation-remove-btn:hover {
+    background: #eef2f7;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+.reservation-remove-btn:active {
+    transform: translateY(1px);
+}
+
+.reservation-action-muted {
+    color: #94a3b8;
+    font-size: 12px;
 }
 
 /* ── Table Cell Styles ── */

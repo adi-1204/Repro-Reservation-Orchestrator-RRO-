@@ -16,6 +16,55 @@ from app.models.reservation_by_name import ReservationByName
 bug = Blueprint("bugDashboard", __name__)
 
 
+def _normalize_station_list(stations_value):
+    if isinstance(stations_value, str):
+        stations_value = stations_value.split(',')
+
+    normalized = []
+    seen = set()
+
+    for station in stations_value or []:
+        station_name = str(station).strip()
+        if not station_name:
+            continue
+        station_key = station_name.lower()
+        if station_key in seen:
+            continue
+        seen.add(station_key)
+        normalized.append(station_name)
+
+    return normalized
+
+
+def _get_active_bug_stations(user_id, bug_id):
+    existing_rows = ReservationByName.query.filter_by(user_id=user_id, bug_id=bug_id).filter(
+        ReservationByName.status != "rejected"
+    ).all()
+
+    station_map = {}
+    for row in existing_rows:
+        for station_name in _normalize_station_list(row.stations):
+            station_map.setdefault(station_name.lower(), station_name)
+
+    return station_map
+
+
+def _get_allowed_repro_build_ids(user_id):
+    build_rows = (
+        db.session.query(Bug.build_id)
+        .filter(
+            Bug.engineer_id == user_id,
+            Bug.bug_type == "repro",
+            Bug.build_id.isnot(None),
+        )
+        .distinct()
+        .order_by(Bug.build_id.asc())
+        .all()
+    )
+
+    return [row[0] for row in build_rows if row and row[0]]
+
+
 # --------------------------------------------------
 # BUG MANAGEMENT PAGE
 # --------------------------------------------------
@@ -527,12 +576,40 @@ def create_reservation():
     res_type = data.get('type')
     try:
         if res_type == 'by_name':
-            stations = data.get('stations', [])
-            stations_str = ",".join(stations) if isinstance(stations, list) else str(stations)
+            bug_id = str(data.get('bug_id') or '').strip()
+            if not bug_id:
+                return jsonify({"error": "Bug ID is required"}), 400
+
+            bug_record = Bug.query.filter_by(bug_id=bug_id, engineer_id=user_id).first()
+            if not bug_record or bug_record.bug_type != "repro":
+                return jsonify({"error": "Select a repro bug assigned to you"}), 400
+
+            stations = _normalize_station_list(data.get('stations', []))
+            if not stations:
+                return jsonify({"error": "Please select at least one station"}), 400
+            if len(stations) > 3:
+                return jsonify({"error": "You can reserve up to 3 stations for the same bug"}), 400
+
+            existing_station_map = _get_active_bug_stations(user_id, bug_id)
+            duplicate_stations = [station for station in stations if station.lower() in existing_station_map]
+            if duplicate_stations:
+                duplicate_label = ", ".join(duplicate_stations)
+                return jsonify({
+                    "error": f"Station(s) already reserved for bug {bug_id}: {duplicate_label}"
+                }), 400
+
+            total_station_count = len(existing_station_map) + len(stations)
+            if total_station_count > 3:
+                remaining = max(0, 3 - len(existing_station_map))
+                return jsonify({
+                    "error": f"You can reserve up to 3 stations for bug {bug_id}. You already have {len(existing_station_map)} reserved, so only {remaining} more station(s) can be added."
+                }), 400
+
+            stations_str = ",".join(stations)
             
             new_res = ReservationByName(
                 user_id=user_id,
-                bug_id=data.get('bug_id'),
+                bug_id=bug_id,
                 stations=stations_str,
                 specify_station=data.get('specify_station', False),
                 status='completed',   # or 'pending'
@@ -547,14 +624,22 @@ def create_reservation():
             }), 201
 
         elif res_type == 'by_config':
+            resource_group = str(data.get('resource_group') or '').strip()
+            if not resource_group:
+                return jsonify({"error": "Build ID is required"}), 400
+
+            allowed_build_ids = _get_allowed_repro_build_ids(user_id)
+            if resource_group not in allowed_build_ids:
+                return jsonify({"error": "Select a build ID from your repro bugs"}), 400
+
             new_res = ReservationByConfig(
                 user_id=user_id,
-                resource_group=data.get('resource_group'),
+                resource_group=resource_group,
                 number_of_nodes=data.get('number_of_nodes'),
                 code_floor=data.get('code_floor'),
                 number_of_pds=data.get('number_of_pds'),
                 rc=data.get('rc', False),
-                status='pending',   # ✅ ADD THIS
+                status='completed',
                 created_at=datetime.now()
             )
             db.session.add(new_res)
@@ -572,6 +657,47 @@ def create_reservation():
         db.session.rollback()
         print(f"[Reservation Error] {str(e)}", flush=True)
         return jsonify({"error": "Failed to store reservation", "details": str(e)}), 500
+
+
+# --------------------------------------------------
+# CANCEL RESERVATION
+# --------------------------------------------------
+@bug.route("/api/reservations/cancel", methods=["POST"])
+def cancel_reservation():
+    from app.models.reservation_by_name import ReservationByName
+    from app.models.reservation_by_config import ReservationByConfig
+
+    user_id = get_current_user_id()
+    role = get_current_role()
+
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    if role != "Engineer":
+        return jsonify({"error": "Only engineers can cancel reservations"}), 403
+
+    data = request.get_json(silent=True) or {}
+    reservation_type = data.get("type")
+    reservation_id = data.get("id")
+
+    if reservation_type not in {"by_name", "by_config"}:
+        return jsonify({"error": "Invalid reservation type"}), 400
+    if not reservation_id:
+        return jsonify({"error": "Reservation id is required"}), 400
+
+    model = ReservationByName if reservation_type == "by_name" else ReservationByConfig
+    reservation = model.query.filter_by(id=reservation_id, user_id=user_id).first()
+
+    if not reservation:
+        return jsonify({"error": "Reservation not found"}), 404
+
+    try:
+        reservation.status = 'rejected'
+        db.session.commit()
+        return jsonify({"message": "Reservation cancelled successfully", "id": reservation.id}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"[Reservation Cancel Error] {str(e)}", flush=True)
+        return jsonify({"error": "Failed to cancel reservation", "details": str(e)}), 500
 # --------------------------------------------------
 # GET BUG ML ANALYSIS
 # --------------------------------------------------

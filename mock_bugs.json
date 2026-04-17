@@ -584,7 +584,7 @@
         "Product":  "Volume Manager",
         "Component":  "pfail",
         "Status":  "REPRODUCE",
-        "Assignee":  "external.engineer@example.com",
+        "Assignee":  "test@gmail.com",
         "Reporter":  "test.reporter11@hpe.com",
         "Developer Progress":  "Triaging",
         "Priority":  "P2",
@@ -601,7 +601,7 @@
                          },
                          {
                              "id":  2,
-                             "creator":  "external.engineer@example.com",
+                             "creator":  "test@gmail.com",
                              "creation_time":  "2024-03-02T12:00:00Z",
                              "text":  "This could be related to the pfail timer not being reset properly after the last successful IO. The pfail daemon checks the IO timestamp against a stale cache. Suggested fix: flush the pfail timestamp cache on node-down event."
                          }
@@ -1140,7 +1140,7 @@
         "Product":  "VV Management",
         "Component":  "Snapshot",
         "Status":  "REPRODUCE",
-        "Assignee":  "external.engineer@example.com",
+        "Assignee":  "test@gmail.com",
         "Reporter":  "test.reporter21@hpe.com",
         "Developer Progress":  "Investigating",
         "Priority":  "P1",
@@ -1157,7 +1157,7 @@
                          },
                          {
                              "id":  2,
-                             "creator":  "external.engineer@example.com",
+                             "creator":  "test@gmail.com",
                              "creation_time":  "2024-06-02T11:00:00Z",
                              "text":  "The snap expiry daemon marks snapshots for deletion but the space reclamation job (snapclean) is not triggered automatically afterward. Fix: invoke snapclean inline after expiry marks snaps for deletion instead of waiting for the next scheduled run."
                          }
@@ -1306,6 +1306,226 @@
                       },
                       {
                           "test_name":  "PDScrubRetry.py",
+                          "station_name":  null,
+                          "build_version":  null,
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100024",
+        "Product":  "System Manager",
+        "Component":  "Scheduler",
+        "Status":  "REPRODUCE",
+        "Assignee":  "aditya@gmail.com",
+        "Reporter":  "test.reporter24@hpe.com",
+        "Developer Progress":  "Investigating",
+        "Priority":  "P1",
+        "Severity":  "major",
+        "Data Outage":  "not applicable",
+        "Whiteboard":  "SM scheduler mock_bug",
+        "Build":  "4.6.5",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter24@hpe.com",
+                             "creation_time":  "2024-06-05T08:05:00Z",
+                             "text":  "Test  Name: testsrc/SystemManager/Scheduler/JobRetry/JobRetry.py\n\tTest  Plan  Name: CEE_Integ_SM_Scheduler_465\n\tTest  Ring  Name: mockring24\n\tExecution  Start: 2024-06-05 08:00:00.000000 UTC\n\tExecution  End: 2024-06-05 09:05:00.000000 UTC\n\tTriager: test.reporter24@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 4.6.5\n\tSignature: scheduler retry queue dropped pending jobs after SM restart\n\nBug Summary:\n    JobRetry: pending retry jobs lost after scheduler restart"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "aditya@gmail.com",
+                             "creation_time":  "2024-06-06T10:10:00Z",
+                             "text":  "Observed that retry queue snapshot is not flushed before SM shutdown. On restart, scheduler loads stale cursor and skips pending entries. Investigating snapshot + cursor update ordering in scheduler persistence path."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "qa.team@hpe.com",
+                             "creation_time":  "2024-06-07T12:15:00Z",
+                             "text":  "Reproduced on 2/5 cycles with forced restart during retry processing. Failure is intermittent but consistent under injected shutdown timing."
+                         }
+                     ],
+        "Bug Name":  "Scheduler Retry Queue Lost After Restart",
+        "Tests":  [
+                      {
+                          "test_name":  "JobRetry.py",
+                          "station_name":  "mockring24",
+                          "build_version":  "4.6.5",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "SchedulerRestartRetry.py",
+                          "station_name":  "mockring6",
+                          "build_version":  "4.6.5",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "SMRetryQueuePersist.py",
+                          "station_name":  null,
+                          "build_version":  "4.6.5",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100025",
+        "Product":  "Remote Copy",
+        "Component":  "IP",
+        "Status":  "OPEN",
+        "Assignee":  "vikhyat@hpe.com",
+        "Reporter":  "test.reporter25@hpe.com",
+        "Developer Progress":  "Triaging",
+        "Priority":  "P2",
+        "Severity":  "major",
+        "Data Outage":  "Data unavailable",
+        "Whiteboard":  "RC IP jitter mock_bug",
+        "Build":  "4.6.5",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter25@hpe.com",
+                             "creation_time":  "2024-06-08T07:20:00Z",
+                             "text":  "Test  Name: testsrc/RemoteCopy/IPTest/RCopyIPJitter/RCopyIPJitter.py\n\tTest  Plan  Name: CEE_Integ_RCopy_IP_Jitter_465\n\tTest  Ring  Name: mockring25\n\tExecution  Start: 2024-06-08 07:00:00.000000 UTC\n\tExecution  End: 2024-06-08 08:20:00.000000 UTC\n\tTriager: test.reporter25@hpe.com\n\tController  Types: Merlin1S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 4.6.5\n\tSignature: RC IP replication lag exceeded threshold under burst network jitter\n\nBug Summary:\n    RCopyIPJitter: replication lag crossed 180s under jitter spikes"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vikhyat@hpe.com",
+                             "creation_time":  "2024-06-09T09:40:00Z",
+                             "text":  "Initial logs show heartbeat packets are deprioritized when retransmit window fills. This delays lag accounting updates and triggers false failover pressure. Collecting packet traces for RC transport scheduler path."
+                         }
+                     ],
+        "Bug Name":  "RC IP Replication Lag Spike Under Jitter",
+        "Tests":  [
+                      {
+                          "test_name":  "RCopyIPJitter.py",
+                          "station_name":  "mockring25",
+                          "build_version":  "4.6.5",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "RCopyIPJitterBurst.py",
+                          "station_name":  "mockring12",
+                          "build_version":  "4.6.5",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "RCopyIPLagThreshold.py",
+                          "station_name":  null,
+                          "build_version":  "4.6.5",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100026",
+        "Product":  "Serviceability",
+        "Component":  "Alert Infrastructure",
+        "Status":  "REPRODUCE",
+        "Assignee":  "aditya@gmail.com",
+        "Reporter":  "test.reporter26@hpe.com",
+        "Developer Progress":  "Investigating",
+        "Priority":  "P2",
+        "Severity":  "normal",
+        "Data Outage":  "not applicable",
+        "Whiteboard":  "alert dedup mock_bug",
+        "Build":  "3.4.0.50",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter26@hpe.com",
+                             "creation_time":  "2024-06-10T08:15:00Z",
+                             "text":  "Test  Name: testsrc/Serviceability/Alert/Dedup/AlertDedup.py\n\tTest  Plan  Name: CEE_Integ_Alert_Dedup_340\n\tTest  Ring  Name: mockring26\n\tExecution  Start: 2024-06-10 08:00:00.000000 UTC\n\tExecution  End: 2024-06-10 09:10:00.000000 UTC\n\tTriager: test.reporter26@hpe.com\n\tController  Types: Merlin2S\n\tNumber  Of  Nodes: 2\n\tFailure  Type: software\n\tBuild  Version: 3.4.0.50\n\tSignature: duplicate alerts were raised every 30 seconds for same PD threshold event\n\nBug Summary:\n    AlertDedup: duplicate threshold alerts not deduplicated in event pipeline"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "aditya@gmail.com",
+                             "creation_time":  "2024-06-11T10:05:00Z",
+                             "text":  "Dedup cache key currently includes timestamp rounded to second, which changes per poll cycle. Will switch to stable key based on event source + object + threshold bucket."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "qa.team@hpe.com",
+                             "creation_time":  "2024-06-12T12:00:00Z",
+                             "text":  "Can reproduce consistently with 20+ PDs crossing threshold simultaneously. Noise level is high and floods UI notifications."
+                         }
+                     ],
+        "Bug Name":  "Duplicate Threshold Alerts Not Deduplicated",
+        "Tests":  [
+                      {
+                          "test_name":  "AlertDedup.py",
+                          "station_name":  "mockring26",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N2"
+                      },
+                      {
+                          "test_name":  "AlertDedupBatchPD.py",
+                          "station_name":  "mockring5",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "AlertDedupCacheKey.py",
+                          "station_name":  null,
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N2"
+                      }
+                  ]
+    },
+    {
+        "Bug Id":  "100027",
+        "Product":  "Volume Manager",
+        "Component":  "Snapshot",
+        "Status":  "OPEN",
+        "Assignee":  "vikhyat@hpe.com",
+        "Reporter":  "test.reporter27@hpe.com",
+        "Developer Progress":  "Triaging",
+        "Priority":  "P1",
+        "Severity":  "major",
+        "Data Outage":  "Data inconsistent",
+        "Whiteboard":  "snapshot chain mock_bug",
+        "Build":  "3.4.0.50",
+        "Comments":  [
+                         {
+                             "id":  1,
+                             "creator":  "test.reporter27@hpe.com",
+                             "creation_time":  "2024-06-13T07:45:00Z",
+                             "text":  "Test  Name: testsrc/VolumeManager/Snapshot/SnapChainDepth/SnapChainDepth.py\n\tTest  Plan  Name: CEE_Integ_SnapChain_340\n\tTest  Ring  Name: mockring27\n\tExecution  Start: 2024-06-13 07:30:00.000000 UTC\n\tExecution  End: 2024-06-13 09:00:00.000000 UTC\n\tTriager: test.reporter27@hpe.com\n\tController  Types: Tornado\n\tNumber  Of  Nodes: 4\n\tFailure  Type: software\n\tBuild  Version: 3.4.0.50\n\tSignature: deep snapshot chain caused write latency spike above SLA\n\nBug Summary:\n    SnapChainDepth: write latency exceeded SLA when snapshot chain depth reached 64"
+                         },
+                         {
+                             "id":  2,
+                             "creator":  "vikhyat@hpe.com",
+                             "creation_time":  "2024-06-14T09:10:00Z",
+                             "text":  "Latency jump aligns with metadata traversal amplification. Current implementation scans full parent chain during write path cache miss. Evaluating parent pointer caching for deep chains."
+                         },
+                         {
+                             "id":  3,
+                             "creator":  "perf.team@hpe.com",
+                             "creation_time":  "2024-06-15T11:30:00Z",
+                             "text":  "Benchmarks confirm latency inflection at chain depth 48-64 on N4 setup. Recommending cap warning and lazy compaction strategy."
+                         }
+                     ],
+        "Bug Name":  "Write Latency Spike with Deep Snapshot Chain",
+        "Tests":  [
+                      {
+                          "test_name":  "SnapChainDepth.py",
+                          "station_name":  "mockring27",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "SnapChainDepthLatency.py",
+                          "station_name":  "mockring8",
+                          "build_version":  "3.4.0.50",
+                          "configuration":  null
+                      },
+                      {
+                          "test_name":  "SnapChainWritePerf.py",
+                          "station_name":  null,
+                          "build_version":  "3.4.0.50",
+                          "configuration":  "N4"
+                      },
+                      {
+                          "test_name":  "SnapChainCompaction.py",
                           "station_name":  null,
                           "build_version":  null,
                           "configuration":  "N2"
