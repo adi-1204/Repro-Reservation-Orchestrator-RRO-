@@ -936,14 +936,14 @@ function renderStationTags() {
 
 /* ── Populate Dropdowns ── */
 async function populateReserveDropdowns() {
-    // Bug IDs from API (Engineer's own bugs, scoped to workgroup if active)
+    // Bug IDs from API (Engineer's own repro bugs only, scoped to workgroup if active)
     try {
         const bugsParams = new URLSearchParams();
         bugsParams.set('my_only', 'true');
         if (activeWorkgroupId) bugsParams.set('workgroup_id', activeWorkgroupId);
         const myBugsData = await apiFetch(`/api/bugs?${bugsParams.toString()}`);
         if (myBugsData) {
-            allBugOptions = [...(myBugsData.repro || []), ...(myBugsData.test || [])].map(b => ({ id: b.id, name: b.bug_name }));
+            allBugOptions = (myBugsData.repro || []).map(b => ({ id: b.id, name: b.bug_name }));
         } else {
             allBugOptions = [];
         }
