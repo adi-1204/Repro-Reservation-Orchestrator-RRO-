@@ -12,6 +12,7 @@ from app.models.workgroupAssignment import WorkgroupAssignment
 from app.auth_utils import get_current_auth_token, get_current_role, get_current_user, get_current_user_id
 from sqlalchemy import select, or_
 from app.models.reservation_by_name import ReservationByName
+from app.models.run_parameters import RunParameter
 
 bug = Blueprint("bugDashboard", __name__)
 
@@ -152,8 +153,16 @@ def get_bugs():
         )
 
     elif role == "Engineer":
-        # Engineers only see their own bugs
-        query = query.filter(Bug.engineer_id == user_id)
+        # Engineers only see bugs from workgroups they are assigned to
+        # (matching both engineer assignment AND build version).
+        # If the engineer is not assigned to any workgroup, no bugs are shown.
+        query = query.filter(
+            db.session.query(WorkgroupAssignment).join(Workgroup).filter(
+                WorkgroupAssignment.employee_id == user_id,
+                Bug.engineer_id == user_id,
+                Workgroup.release_version == Bug.build_id
+            ).exists()
+        )
 
     bugs = query.all()
 
@@ -235,11 +244,48 @@ def bug_stats():
         total = query.count()
         repro = query.filter(Bug.bug_type == "repro").count()
         test = query.filter(Bug.bug_type == "test").count()
-        pending = query.filter(
-            Bug.bug_type == "repro",
-            Bug.status.in_(["pending", "running"]),
-            Bug.engineer_id.isnot(None)
-        ).count()
+
+        # Pending Actions = Reservations that have no subsequent run
+        pending = 0
+        from app.models.reservation_by_config import ReservationByConfig
+        from app.models.run_parameters import RunParameter
+        
+        applicable_bug_ids = {b.bug_id for b in query.all()}
+        
+        # By Config
+        config_res_query = db.session.query(ReservationByConfig).filter(
+            ReservationByConfig.resource_group == workgroup.release_version
+        )
+        if role == "Engineer":
+            config_res_query = config_res_query.filter(ReservationByConfig.user_id == user_id)
+        elif role == "Manager":
+            config_res_query = config_res_query.filter(ReservationByConfig.user_id.in_(wg_engineer_ids))
+        pending += config_res_query.count()
+
+        # By Name
+        if applicable_bug_ids:
+            name_res_query = db.session.query(ReservationByName).filter(ReservationByName.bug_id.in_(applicable_bug_ids))
+            if role == "Engineer":
+                name_res_query = name_res_query.filter(ReservationByName.user_id == user_id)
+            elif role == "Manager":
+                name_res_query = name_res_query.filter(ReservationByName.user_id.in_(wg_engineer_ids))
+            
+            latest_res_by_bug = {}
+            for r in name_res_query.all():
+                if r.bug_id not in latest_res_by_bug or r.created_at > latest_res_by_bug[r.bug_id].created_at:
+                    latest_res_by_bug[r.bug_id] = r
+                    
+            for bug_id, res in latest_res_by_bug.items():
+                latest_run_q = RunParameter.query.filter_by(bug_id=bug_id)
+                if role == "Engineer":
+                    latest_run_q = latest_run_q.filter_by(submitted_by=user_id)
+                elif role == "Manager":
+                    latest_run_q = latest_run_q.filter(RunParameter.submitted_by.in_(wg_engineer_ids))
+                
+                latest_run = latest_run_q.order_by(RunParameter.submitted_at.desc()).first()
+                if not latest_run or latest_run.submitted_at < res.created_at:
+                    pending += 1
+
         running = query.filter(Bug.status == "running").count()
         completed = query.filter(Bug.status == "completed").count()
 
@@ -262,16 +308,71 @@ def bug_stats():
             ).exists()
         )
     elif role == "Engineer":
-        query = query.filter(Bug.engineer_id == user_id)
+        # Engineers only see stats for bugs from workgroups they are assigned to
+        query = query.filter(
+            db.session.query(WorkgroupAssignment).join(Workgroup).filter(
+                WorkgroupAssignment.employee_id == user_id,
+                Bug.engineer_id == user_id,
+                Workgroup.release_version == Bug.build_id
+            ).exists()
+        )
 
     total = query.count()
     repro = query.filter(Bug.bug_type == "repro").count()
     test = query.filter(Bug.bug_type == "test").count()
-    pending = query.filter(
-        Bug.bug_type == "repro",
-        Bug.status.in_(["pending", "running"]),
-        Bug.engineer_id.isnot(None)
-    ).count()
+
+    # Pending Actions = Reservations that have no subsequent run
+    pending = 0
+    from app.models.reservation_by_config import ReservationByConfig
+    from app.models.run_parameters import RunParameter
+    
+    applicable_bug_ids = {b.bug_id for b in query.all()}
+    
+    # By Config
+    if role == "Engineer":
+        pending += db.session.query(ReservationByConfig).filter_by(user_id=user_id).count()
+    elif role == "Manager":
+        managed_engineers = db.session.query(WorkgroupAssignment.employee_id).join(Workgroup).filter(
+            Workgroup.manager_id == user_id
+        ).subquery()
+        managed_releases = db.session.query(Workgroup.release_version).filter(
+            Workgroup.manager_id == user_id
+        ).subquery()
+        pending += db.session.query(ReservationByConfig).filter(
+            ReservationByConfig.user_id.in_(managed_engineers),
+            ReservationByConfig.resource_group.in_(managed_releases)
+        ).count()
+
+    # By Name
+    if applicable_bug_ids:
+        name_res_query = db.session.query(ReservationByName).filter(ReservationByName.bug_id.in_(applicable_bug_ids))
+        if role == "Engineer":
+            name_res_query = name_res_query.filter(ReservationByName.user_id == user_id)
+        elif role == "Manager":
+            managed_engineers = db.session.query(WorkgroupAssignment.employee_id).join(Workgroup).filter(
+                Workgroup.manager_id == user_id
+            ).subquery()
+            name_res_query = name_res_query.filter(ReservationByName.user_id.in_(managed_engineers))
+        
+        latest_res_by_bug = {}
+        for r in name_res_query.all():
+            if r.bug_id not in latest_res_by_bug or r.created_at > latest_res_by_bug[r.bug_id].created_at:
+                latest_res_by_bug[r.bug_id] = r
+                
+        for bug_id, res in latest_res_by_bug.items():
+            latest_run_q = RunParameter.query.filter_by(bug_id=bug_id)
+            if role == "Engineer":
+                latest_run_q = latest_run_q.filter_by(submitted_by=user_id)
+            elif role == "Manager":
+                managed_engineers = db.session.query(WorkgroupAssignment.employee_id).join(Workgroup).filter(
+                    Workgroup.manager_id == user_id
+                ).subquery()
+                latest_run_q = latest_run_q.filter(RunParameter.submitted_by.in_(managed_engineers))
+                
+            latest_run = latest_run_q.order_by(RunParameter.submitted_at.desc()).first()
+            if not latest_run or latest_run.submitted_at < res.created_at:
+                pending += 1
+
     running = query.filter(Bug.status == "running").count()
     completed = query.filter(Bug.status == "completed").count()
 
@@ -334,7 +435,14 @@ def search_bugs():
             ).exists()
         )
     elif role == "Engineer":
-        base_query = base_query.filter(Bug.engineer_id == user_id)
+        # Engineers only see search results for bugs from their assigned workgroups
+        base_query = base_query.filter(
+            db.session.query(WorkgroupAssignment).join(Workgroup).filter(
+                WorkgroupAssignment.employee_id == user_id,
+                Bug.engineer_id == user_id,
+                Workgroup.release_version == Bug.build_id
+            ).exists()
+        )
 
     # ── Collect suggestions from four categories ──
     suggestions = []
