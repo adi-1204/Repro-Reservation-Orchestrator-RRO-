@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, jsonify, request, redirect, url_for
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.extensions import db
 from app.models.bug import Bug
 from app.models.bug_comments import BugComment
@@ -9,9 +9,9 @@ from app.models.bug_stations import BugStation
 from app.models.user import User
 from app.models.workgroup import Workgroup
 from app.models.workgroupAssignment import WorkgroupAssignment
+from app.models.reservation_by_name import ReservationByName
 from app.auth_utils import get_current_auth_token, get_current_role, get_current_user, get_current_user_id
 from sqlalchemy import select, or_
-from app.models.reservation_by_name import ReservationByName
 from app.models.run_parameters import RunParameter
 
 bug = Blueprint("bugDashboard", __name__)
@@ -64,6 +64,62 @@ def _get_allowed_repro_build_ids(user_id):
     )
 
     return [row[0] for row in build_rows if row and row[0]]
+
+
+def _split_station_list(stations_value):
+    if isinstance(stations_value, str):
+        stations_value = stations_value.split(',')
+
+    stations = []
+    seen = set()
+
+    for station in stations_value or []:
+        station_name = str(station).strip()
+        if not station_name:
+            continue
+
+        station_key = station_name.lower()
+        if station_key in seen:
+            continue
+
+        seen.add(station_key)
+        stations.append(station_name)
+
+    return stations
+
+
+def _count_pending_by_name_actions(reservations, cutoff_time):
+    pending = 0
+
+    for reservation in reservations:
+        if not reservation.created_at or reservation.created_at < cutoff_time:
+            continue
+        if str(getattr(reservation, "status", "")).lower() == "rejected":
+            continue
+
+        reserved_stations = _split_station_list(reservation.stations)
+        if not reserved_stations:
+            continue
+
+        matched_stations = {
+            (station_name or "").strip().lower()
+            for (station_name,) in db.session.query(RunParameter.station_name)
+            .filter(
+                RunParameter.bug_id == reservation.bug_id,
+                RunParameter.submitted_by == reservation.user_id,
+                RunParameter.submitted_at >= reservation.created_at,
+                RunParameter.station_name.in_(reserved_stations),
+            )
+            .distinct()
+            .all()
+        }
+
+        pending += sum(
+            1 for station_name in reserved_stations
+            if station_name.lower() not in matched_stations
+        )
+
+    return pending
 
 
 # --------------------------------------------------
@@ -216,6 +272,8 @@ def bug_stats():
     if not user_id:
         return jsonify({"error": "Not logged in"}), 401
 
+    active_cutoff = datetime.utcnow() - timedelta(hours=48)
+
     workgroup_id = request.args.get('workgroup_id', type=int)
     my_only = request.args.get('my_only', 'false').lower() == 'true'
 
@@ -245,46 +303,36 @@ def bug_stats():
         repro = query.filter(Bug.bug_type == "repro").count()
         test = query.filter(Bug.bug_type == "test").count()
 
-        # Pending Actions = Reservations that have no subsequent run
+        # Pending Actions = active reservation rows visible in the table
         pending = 0
         from app.models.reservation_by_config import ReservationByConfig
-        from app.models.run_parameters import RunParameter
         
         applicable_bug_ids = {b.bug_id for b in query.all()}
-        
+
+        # By Name
+        if applicable_bug_ids:
+            name_res_query = ReservationByName.query.filter(ReservationByName.bug_id.in_(applicable_bug_ids))
+            if role == "Engineer":
+                name_res_query = name_res_query.filter(ReservationByName.user_id == user_id)
+            elif role == "Manager":
+                name_res_query = name_res_query.filter(ReservationByName.user_id.in_(wg_engineer_ids))
+
+            pending += _count_pending_by_name_actions(name_res_query.all(), active_cutoff)
+
         # By Config
-        config_res_query = db.session.query(ReservationByConfig).filter(
+        config_res_query = ReservationByConfig.query.filter(
             ReservationByConfig.resource_group == workgroup.release_version
         )
         if role == "Engineer":
             config_res_query = config_res_query.filter(ReservationByConfig.user_id == user_id)
         elif role == "Manager":
             config_res_query = config_res_query.filter(ReservationByConfig.user_id.in_(wg_engineer_ids))
-        pending += config_res_query.count()
 
-        # By Name
-        if applicable_bug_ids:
-            name_res_query = db.session.query(ReservationByName).filter(ReservationByName.bug_id.in_(applicable_bug_ids))
-            if role == "Engineer":
-                name_res_query = name_res_query.filter(ReservationByName.user_id == user_id)
-            elif role == "Manager":
-                name_res_query = name_res_query.filter(ReservationByName.user_id.in_(wg_engineer_ids))
-            
-            latest_res_by_bug = {}
-            for r in name_res_query.all():
-                if r.bug_id not in latest_res_by_bug or r.created_at > latest_res_by_bug[r.bug_id].created_at:
-                    latest_res_by_bug[r.bug_id] = r
-                    
-            for bug_id, res in latest_res_by_bug.items():
-                latest_run_q = RunParameter.query.filter_by(bug_id=bug_id)
-                if role == "Engineer":
-                    latest_run_q = latest_run_q.filter_by(submitted_by=user_id)
-                elif role == "Manager":
-                    latest_run_q = latest_run_q.filter(RunParameter.submitted_by.in_(wg_engineer_ids))
-                
-                latest_run = latest_run_q.order_by(RunParameter.submitted_at.desc()).first()
-                if not latest_run or latest_run.submitted_at < res.created_at:
-                    pending += 1
+        pending += config_res_query.filter(
+            ReservationByConfig.created_at.isnot(None),
+            ReservationByConfig.created_at >= active_cutoff,
+            ReservationByConfig.status != "rejected",
+        ).count()
 
         running = query.filter(Bug.status == "running").count()
         completed = query.filter(Bug.status == "completed").count()
@@ -321,31 +369,15 @@ def bug_stats():
     repro = query.filter(Bug.bug_type == "repro").count()
     test = query.filter(Bug.bug_type == "test").count()
 
-    # Pending Actions = Reservations that have no subsequent run
+    # Pending Actions = active reservation rows visible in the table
     pending = 0
     from app.models.reservation_by_config import ReservationByConfig
-    from app.models.run_parameters import RunParameter
     
     applicable_bug_ids = {b.bug_id for b in query.all()}
-    
-    # By Config
-    if role == "Engineer":
-        pending += db.session.query(ReservationByConfig).filter_by(user_id=user_id).count()
-    elif role == "Manager":
-        managed_engineers = db.session.query(WorkgroupAssignment.employee_id).join(Workgroup).filter(
-            Workgroup.manager_id == user_id
-        ).subquery()
-        managed_releases = db.session.query(Workgroup.release_version).filter(
-            Workgroup.manager_id == user_id
-        ).subquery()
-        pending += db.session.query(ReservationByConfig).filter(
-            ReservationByConfig.user_id.in_(managed_engineers),
-            ReservationByConfig.resource_group.in_(managed_releases)
-        ).count()
 
     # By Name
     if applicable_bug_ids:
-        name_res_query = db.session.query(ReservationByName).filter(ReservationByName.bug_id.in_(applicable_bug_ids))
+        name_res_query = ReservationByName.query.filter(ReservationByName.bug_id.in_(applicable_bug_ids))
         if role == "Engineer":
             name_res_query = name_res_query.filter(ReservationByName.user_id == user_id)
         elif role == "Manager":
@@ -353,25 +385,31 @@ def bug_stats():
                 Workgroup.manager_id == user_id
             ).subquery()
             name_res_query = name_res_query.filter(ReservationByName.user_id.in_(managed_engineers))
-        
-        latest_res_by_bug = {}
-        for r in name_res_query.all():
-            if r.bug_id not in latest_res_by_bug or r.created_at > latest_res_by_bug[r.bug_id].created_at:
-                latest_res_by_bug[r.bug_id] = r
-                
-        for bug_id, res in latest_res_by_bug.items():
-            latest_run_q = RunParameter.query.filter_by(bug_id=bug_id)
-            if role == "Engineer":
-                latest_run_q = latest_run_q.filter_by(submitted_by=user_id)
-            elif role == "Manager":
-                managed_engineers = db.session.query(WorkgroupAssignment.employee_id).join(Workgroup).filter(
-                    Workgroup.manager_id == user_id
-                ).subquery()
-                latest_run_q = latest_run_q.filter(RunParameter.submitted_by.in_(managed_engineers))
-                
-            latest_run = latest_run_q.order_by(RunParameter.submitted_at.desc()).first()
-            if not latest_run or latest_run.submitted_at < res.created_at:
-                pending += 1
+
+        pending += _count_pending_by_name_actions(name_res_query.all(), active_cutoff)
+
+    # By Config
+    if role == "Engineer":
+        pending += ReservationByConfig.query.filter(
+            ReservationByConfig.user_id == user_id,
+            ReservationByConfig.created_at.isnot(None),
+            ReservationByConfig.created_at >= active_cutoff,
+            ReservationByConfig.status != "rejected",
+        ).count()
+    elif role == "Manager":
+        managed_engineers = db.session.query(WorkgroupAssignment.employee_id).join(Workgroup).filter(
+            Workgroup.manager_id == user_id
+        ).subquery()
+        managed_releases = db.session.query(Workgroup.release_version).filter(
+            Workgroup.manager_id == user_id
+        ).subquery()
+        pending += ReservationByConfig.query.filter(
+            ReservationByConfig.user_id.in_(managed_engineers),
+            ReservationByConfig.resource_group.in_(managed_releases),
+            ReservationByConfig.created_at.isnot(None),
+            ReservationByConfig.created_at >= active_cutoff,
+            ReservationByConfig.status != "rejected",
+        ).count()
 
     running = query.filter(Bug.status == "running").count()
     completed = query.filter(Bug.status == "completed").count()
